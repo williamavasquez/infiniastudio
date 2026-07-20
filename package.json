@@ -1,0 +1,14 @@
+{
+  "name": "infiniaw",
+  "version": "0.1.0",
+  "description": "Formulario para capturar datos y guardarlos/consultarlos en un archivo Excel",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "exceljs": "^4.4.0"
+  }
+}

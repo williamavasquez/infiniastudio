@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Formulario de Registro</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="card">
+    <h1>Formulario de Registro</h1>
+    <p class="hint">Ingresá el DNI para buscar. Si existe, vas a ver los datos guardados; si no, se te va a pedir que los cargues.</p>
+
+    <label class="dni-label">
+      DNI
+      <input type="text" id="dni" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" autofocus />
+      <span id="dni-status" class="status"></span>
+    </label>
+
+    <!-- Estado: DNI encontrado -->
+    <section id="vista-encontrado" class="hidden">
+      <p id="mensaje-bienvenida" class="bienvenida"></p>
+      <button type="button" id="btn-editar">Editar</button>
+    </section>
+
+    <!-- Estado: DNI no encontrado o en edición -->
+    <form id="registro-form" class="hidden" autocomplete="off">
+      <label>
+        Fecha
+        <input type="date" id="fecha" name="Fecha" required />
+      </label>
+
+      <label>
+        Nombre
+        <input type="text" id="nombre" name="Nombre" required />
+      </label>
+
+      <label>
+        Apellido
+        <input type="text" id="apellido" name="Apellido" required />
+      </label>
+
+      <label>
+        Fecha de Nacimiento <span class="placeholder-note">(placeholder — decinos qué representa este segundo campo)</span>
+        <input type="date" id="fecha-nacimiento" name="FechaNacimiento" />
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" id="btn-guardar">Guardar</button>
+        <button type="button" id="btn-cancelar" class="secondary hidden">Cancelar</button>
+      </div>
+      <p id="form-message" class="message"></p>
+    </form>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
