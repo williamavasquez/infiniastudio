@@ -4,54 +4,139 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Formulario de Registro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@400;500;600;700&family=EB+Garamond:ital@0;1&display=swap"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="card">
-    <h1>Formulario de Registro</h1>
-    <p class="hint">Ingresá el DNI para buscar. Si existe, vas a ver los datos guardados; si no, se te va a pedir que los cargues.</p>
+    <div class="narrow">
+      <div class="logo-placeholder" aria-hidden="true">
+        <span>LOGO</span>
+      </div>
+      <h1>Formulario de Registro</h1>
+      <p class="hint">Ingresá el documento para buscar. Si existe, vas a ver un saludo; si no, se te va a pedir que cargues los datos.</p>
 
-    <label class="dni-label">
-      DNI
-      <input type="text" id="dni" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" autofocus />
+      <div class="dni-row">
+        <label class="dni-label">
+          Documento
+          <input type="text" id="documento" autocomplete="off" autofocus />
+        </label>
+        <button type="button" id="btn-buscar">Buscar</button>
+      </div>
       <span id="dni-status" class="status"></span>
-    </label>
 
-    <!-- Estado: DNI encontrado -->
-    <section id="vista-encontrado" class="hidden">
-      <p id="mensaje-bienvenida" class="bienvenida"></p>
-      <button type="button" id="btn-editar">Editar</button>
-    </section>
+      <!-- Estado: documento encontrado -->
+      <section id="vista-encontrado" class="hidden">
+        <p id="mensaje-bienvenida" class="bienvenida"></p>
+        <div class="form-actions">
+          <button type="button" id="btn-asistencia">Registrar Asistencia</button>
+          <button type="button" id="btn-editar" class="secondary">Actualizar</button>
+        </div>
+      </section>
 
-    <!-- Estado: DNI no encontrado o en edición -->
+      <!-- Estado: registrando asistencia -->
+      <section id="panel-asistencia" class="hidden">
+        <fieldset class="categoria-group">
+          <legend>Categoría</legend>
+          <label class="radio-option">
+            <input type="radio" name="categoria" value="Asistencia Estética" checked />
+            Asistencia Estética
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="categoria" value="Asistencia Pilates" />
+            Asistencia Pilates
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="categoria" value="Clase de prueba" />
+            Clase de prueba
+          </label>
+          <label class="radio-option">
+            <input type="radio" name="categoria" value="Consulta Medica" />
+            Consulta Medica
+          </label>
+        </fieldset>
+        <div class="form-actions">
+          <button type="button" id="btn-confirmar-asistencia">Confirmar Asistencia</button>
+          <button type="button" id="btn-cancelar-asistencia" class="secondary">Cancelar</button>
+        </div>
+        <p id="asistencia-message" class="message"></p>
+      </section>
+    </div>
+
+    <!-- Estado: documento no encontrado o en edición -->
     <form id="registro-form" class="hidden" autocomplete="off">
-      <label>
-        Fecha
-        <input type="date" id="fecha" name="Fecha" required />
+      <label class="full-width">
+        Paciente
+        <input type="text" id="paciente" name="PACIENTE" required />
       </label>
 
       <label>
-        Nombre
-        <input type="text" id="nombre" name="Nombre" required />
+        Tipo Doc
+        <select id="tipo-doc" name="TIPO_DOC">
+          <option value="DNI">DNI</option>
+          <option value="CE">CE</option>
+          <option value="RUC">RUC</option>
+          <option value="PASAPORTE">PASAPORTE</option>
+          <option value="MENOR DE EDAD">MENOR DE EDAD</option>
+        </select>
       </label>
 
       <label>
-        Apellido
-        <input type="text" id="apellido" name="Apellido" required />
+        ¿Cómo desea que lo llamemos?
+        <input type="text" id="apodo" name="APODO" />
       </label>
 
       <label>
-        Fecha de Nacimiento <span class="placeholder-note">(placeholder — decinos qué representa este segundo campo)</span>
-        <input type="date" id="fecha-nacimiento" name="FechaNacimiento" />
+        RUC
+        <input type="text" id="ruc" name="RUC" />
       </label>
 
-      <div class="form-actions">
+      <label>
+        Celular
+        <input type="tel" id="celular" name="CELULAR" />
+      </label>
+
+      <label>
+        Distrito
+        <select id="distrito" name="DISTRITO">
+          <option value="">Seleccioná un distrito</option>
+        </select>
+      </label>
+
+      <label>
+        Fecha de Nacimiento
+        <input type="date" id="f-nacimiento" name="F_NACIMIENTO" />
+      </label>
+
+      <label>
+        Edad
+        <input type="text" id="edad" name="EDAD" readonly />
+      </label>
+
+      <label>
+        Correo
+        <input type="email" id="correo" name="CORREO" />
+      </label>
+
+      <label class="full-width">
+        Dirección
+        <input type="text" id="direccion" name="DIRECCION" />
+      </label>
+
+      <div class="form-actions full-width">
         <button type="submit" id="btn-guardar">Guardar</button>
         <button type="button" id="btn-cancelar" class="secondary hidden">Cancelar</button>
       </div>
-      <p id="form-message" class="message"></p>
+      <p id="form-message" class="message full-width"></p>
     </form>
   </main>
+
+  <div id="toast" class="toast hidden"></div>
 
   <script src="app.js"></script>
 </body>

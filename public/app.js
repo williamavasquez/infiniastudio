@@ -1,92 +1,198 @@
-const dniInput = document.getElementById('dni');
+const documentoInput = document.getElementById('documento');
+const btnBuscar = document.getElementById('btn-buscar');
 const dniStatus = document.getElementById('dni-status');
 
 const vistaEncontrado = document.getElementById('vista-encontrado');
 const btnEditar = document.getElementById('btn-editar');
+const btnAsistencia = document.getElementById('btn-asistencia');
 const mensajeBienvenida = document.getElementById('mensaje-bienvenida');
 
+const panelAsistencia = document.getElementById('panel-asistencia');
+const categoriaRadios = document.querySelectorAll('input[name="categoria"]');
+
+function getCategoriaSeleccionada() {
+  const checked = document.querySelector('input[name="categoria"]:checked');
+  return checked ? checked.value : '';
+}
+const btnConfirmarAsistencia = document.getElementById('btn-confirmar-asistencia');
+const btnCancelarAsistencia = document.getElementById('btn-cancelar-asistencia');
+const asistenciaMessage = document.getElementById('asistencia-message');
+
 const form = document.getElementById('registro-form');
-const fechaInput = document.getElementById('fecha');
-const nombreInput = document.getElementById('nombre');
-const apellidoInput = document.getElementById('apellido');
-const fechaNacimientoInput = document.getElementById('fecha-nacimiento');
+const tipoDocInput = document.getElementById('tipo-doc');
+const pacienteInput = document.getElementById('paciente');
+const apodoInput = document.getElementById('apodo');
+const rucInput = document.getElementById('ruc');
+const celularInput = document.getElementById('celular');
+const distritoInput = document.getElementById('distrito');
+const fNacimientoInput = document.getElementById('f-nacimiento');
+const edadInput = document.getElementById('edad');
+const correoInput = document.getElementById('correo');
+const direccionInput = document.getElementById('direccion');
 const btnCancelar = document.getElementById('btn-cancelar');
 const formMessage = document.getElementById('form-message');
 
-let registroActual = null; // último registro encontrado para este DNI (o null)
+const toast = document.getElementById('toast');
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
+let clienteActual = null; // último cliente encontrado para este documento (o null)
+
+async function cargarDistritos() {
+  try {
+    const res = await fetch('/api/distritos');
+    const nombres = await res.json();
+    nombres.forEach((nombre) => {
+      const option = document.createElement('option');
+      option.value = nombre;
+      option.textContent = nombre;
+      distritoInput.appendChild(option);
+    });
+  } catch (err) {
+    // La lista se queda solo con "Seleccioná un distrito" si falla.
+  }
+}
+cargarDistritos();
+
+function mostrarToast(mensaje) {
+  toast.textContent = mensaje;
+  toast.classList.remove('hidden');
+  // reflow so the animation restarts if a toast is already showing
+  void toast.offsetWidth;
+  toast.classList.add('visible');
+  clearTimeout(mostrarToast._timer);
+  mostrarToast._timer = setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => toast.classList.add('hidden'), 250);
+  }, 3000);
 }
 
+function calcularEdad(fNacimientoISO) {
+  if (!fNacimientoISO) return '';
+  const nacimiento = new Date(`${fNacimientoISO}T00:00:00Z`);
+  if (Number.isNaN(nacimiento.getTime())) return '';
+  const hoy = new Date();
+  let edad = hoy.getUTCFullYear() - nacimiento.getUTCFullYear();
+  const aunNoCumplio =
+    hoy.getUTCMonth() < nacimiento.getUTCMonth() ||
+    (hoy.getUTCMonth() === nacimiento.getUTCMonth() && hoy.getUTCDate() < nacimiento.getUTCDate());
+  if (aunNoCumplio) edad -= 1;
+  return String(Math.max(edad, 0));
+}
+
+fNacimientoInput.addEventListener('input', () => {
+  edadInput.value = calcularEdad(fNacimientoInput.value);
+});
+
 function limpiarFormulario() {
-  fechaInput.value = today();
-  nombreInput.value = '';
-  apellidoInput.value = '';
-  fechaNacimientoInput.value = '';
+  tipoDocInput.value = 'DNI';
+  pacienteInput.value = '';
+  apodoInput.value = '';
+  rucInput.value = '';
+  celularInput.value = '';
+  distritoInput.value = '';
+  fNacimientoInput.value = '';
+  edadInput.value = '';
+  correoInput.value = '';
+  direccionInput.value = '';
   formMessage.textContent = '';
   formMessage.className = 'message';
 }
 
-function mostrarVistaEncontrado(registro) {
-  mensajeBienvenida.textContent = `Bienvenido/a ${registro.Nombre} ${registro.Apellido}`;
-
-  vistaEncontrado.classList.remove('hidden');
+function ocultarTodo() {
+  vistaEncontrado.classList.add('hidden');
+  panelAsistencia.classList.add('hidden');
   form.classList.add('hidden');
 }
 
+function mostrarVistaEncontrado(cliente) {
+  documentoInput.readOnly = false;
+  mensajeBienvenida.textContent = `Bienvenido/a ${cliente.apodo || cliente.paciente}`;
+  ocultarTodo();
+  vistaEncontrado.classList.remove('hidden');
+}
+
+function mostrarPanelAsistencia() {
+  documentoInput.readOnly = false;
+  ocultarTodo();
+  panelAsistencia.classList.remove('hidden');
+  categoriaRadios[0].checked = true;
+  asistenciaMessage.textContent = '';
+  asistenciaMessage.className = 'message';
+}
+
 function mostrarFormulario({ editando }) {
-  vistaEncontrado.classList.add('hidden');
+  ocultarTodo();
   form.classList.remove('hidden');
   btnCancelar.classList.toggle('hidden', !editando);
+  // El documento es la clave del registro — no se debe poder cambiar al
+  // actualizar uno ya existente. Sí se puede corregir al crear uno nuevo.
+  documentoInput.readOnly = editando;
 
-  if (editando && registroActual) {
-    fechaInput.value = registroActual.Fecha || today();
-    nombreInput.value = registroActual.Nombre || '';
-    apellidoInput.value = registroActual.Apellido || '';
-    fechaNacimientoInput.value = registroActual.FechaNacimiento || '';
+  if (editando && clienteActual) {
+    tipoDocInput.value = clienteActual.tipo_doc || 'DNI';
+    pacienteInput.value = clienteActual.paciente || '';
+    apodoInput.value = clienteActual.apodo || '';
+    rucInput.value = clienteActual.ruc || '';
+    celularInput.value = clienteActual.celular || '';
+    distritoInput.value = clienteActual.distrito || '';
+    fNacimientoInput.value = clienteActual.f_nacimiento || '';
+    edadInput.value = calcularEdad(clienteActual.f_nacimiento);
+    correoInput.value = clienteActual.correo || '';
+    direccionInput.value = clienteActual.direccion || '';
+    formMessage.textContent = '';
+    formMessage.className = 'message';
   } else {
     limpiarFormulario();
   }
 }
 
-function ocultarTodo() {
-  vistaEncontrado.classList.add('hidden');
-  form.classList.add('hidden');
-}
-
 let lookupTimer = null;
+const BUSQUEDA_DEBOUNCE_MS = 2000;
 
-const DNI_LENGTH = 8;
-
-dniInput.addEventListener('input', () => {
+documentoInput.addEventListener('input', () => {
   clearTimeout(lookupTimer);
-  const dni = dniInput.value.trim();
+  clienteActual = null;
+  ocultarTodo();
   dniStatus.textContent = '';
   dniStatus.className = 'status';
-  registroActual = null;
-  ocultarTodo();
 
-  if (dni.length < DNI_LENGTH) return;
+  const documento = documentoInput.value.trim();
+  if (documento.length < 3) return;
 
-  lookupTimer = setTimeout(() => buscarDni(dni), 350);
+  // Esperamos a que la persona termine de tipear (los documentos tienen
+  // largos distintos: DNI, CE, RUC, pasaporte) antes de disparar la búsqueda,
+  // para que la pantalla no cambie mientras todavía está escribiendo.
+  lookupTimer = setTimeout(() => buscarDocumento(documento), BUSQUEDA_DEBOUNCE_MS);
 });
 
-async function buscarDni(dni) {
+documentoInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    clearTimeout(lookupTimer);
+    buscarDocumento(documentoInput.value.trim());
+  }
+});
+
+btnBuscar.addEventListener('click', () => {
+  clearTimeout(lookupTimer);
+  buscarDocumento(documentoInput.value.trim());
+});
+
+async function buscarDocumento(documento) {
+  if (!documento) return;
   dniStatus.textContent = 'Buscando...';
   dniStatus.className = 'status';
 
   try {
-    const res = await fetch(`/api/lookup/${encodeURIComponent(dni)}`);
+    const res = await fetch(`/api/lookup/${encodeURIComponent(documento)}`);
     const data = await res.json();
 
     if (data.found) {
-      registroActual = data.registro;
+      clienteActual = data.cliente;
       dniStatus.textContent = 'Encontrado';
       dniStatus.className = 'status found';
-      mostrarVistaEncontrado(registroActual);
+      mostrarVistaEncontrado(clienteActual);
     } else {
-      registroActual = null;
+      clienteActual = null;
       dniStatus.textContent = 'No encontrado — completá los datos';
       dniStatus.className = 'status not-found';
       mostrarFormulario({ editando: false });
@@ -102,10 +208,44 @@ btnEditar.addEventListener('click', () => {
 });
 
 btnCancelar.addEventListener('click', () => {
-  if (registroActual) {
-    mostrarVistaEncontrado(registroActual);
+  if (clienteActual) {
+    mostrarVistaEncontrado(clienteActual);
   } else {
+    documentoInput.readOnly = false;
     ocultarTodo();
+  }
+});
+
+btnAsistencia.addEventListener('click', () => {
+  mostrarPanelAsistencia();
+});
+
+btnCancelarAsistencia.addEventListener('click', () => {
+  mostrarVistaEncontrado(clienteActual);
+});
+
+btnConfirmarAsistencia.addEventListener('click', async () => {
+  asistenciaMessage.textContent = '';
+  asistenciaMessage.className = 'message';
+
+  try {
+    const res = await fetch('/api/asistencias', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        NRO_DOC: clienteActual.documento,
+        CATEGORIA: getCategoriaSeleccionada(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al registrar asistencia');
+
+    const a = data.asistencia;
+    asistenciaMessage.textContent = `Asistencia registrada: ${a.turno} — ${a.categoria} a las ${a.hora_atencion}`;
+    asistenciaMessage.className = 'message ok';
+  } catch (err) {
+    asistenciaMessage.textContent = err.message;
+    asistenciaMessage.className = 'message error';
   }
 });
 
@@ -114,23 +254,29 @@ form.addEventListener('submit', async (e) => {
   formMessage.textContent = '';
   formMessage.className = 'message';
 
-  const dni = dniInput.value.trim();
-  if (!dni) {
-    formMessage.textContent = 'Ingresá un DNI.';
+  const eraActualizacion = Boolean(clienteActual);
+  const documento = documentoInput.value.trim();
+  if (!documento) {
+    formMessage.textContent = 'Ingresá un documento.';
     formMessage.className = 'message error';
     return;
   }
 
   const payload = {
-    Fecha: fechaInput.value,
-    DNI: dni,
-    Nombre: nombreInput.value.trim(),
-    Apellido: apellidoInput.value.trim(),
-    FechaNacimiento: fechaNacimientoInput.value,
+    DOCUMENTO: documento,
+    TIPO_DOC: tipoDocInput.value,
+    PACIENTE: pacienteInput.value.trim(),
+    APODO: apodoInput.value.trim(),
+    RUC: rucInput.value.trim(),
+    CELULAR: celularInput.value.trim(),
+    DISTRITO: distritoInput.value.trim(),
+    F_NACIMIENTO: fNacimientoInput.value,
+    CORREO: correoInput.value.trim(),
+    DIRECCION: direccionInput.value.trim(),
   };
 
   try {
-    const res = await fetch('/api/registros', {
+    const res = await fetch('/api/clientes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -139,10 +285,11 @@ form.addEventListener('submit', async (e) => {
 
     if (!res.ok) throw new Error(data.error || 'Error al guardar');
 
-    registroActual = data.registro;
+    clienteActual = data.cliente;
     dniStatus.textContent = 'Encontrado';
     dniStatus.className = 'status found';
-    mostrarVistaEncontrado(registroActual);
+    mostrarVistaEncontrado(clienteActual);
+    mostrarToast(eraActualizacion ? 'Datos actualizados correctamente' : 'Cliente guardado correctamente');
   } catch (err) {
     formMessage.textContent = err.message;
     formMessage.className = 'message error';

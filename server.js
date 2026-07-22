@@ -1,113 +1,79 @@
-const fs = require('fs');
+require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const ExcelJS = require('exceljs');
+const clientesRepo = require('./lib/clientesRepo');
+const asistenciasRepo = require('./lib/asistenciasRepo');
+const distritos = require('./lib/distritos.json');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ---------------------------------------------------------------------------
-// CONFIG — edit this once you tell me the real Excel file / sheet / columns.
-// ---------------------------------------------------------------------------
-const EXCEL_PATH = path.join(__dirname, 'data', 'registros.xlsx');
-const SHEET_NAME = 'Registros';
-
-// Column headers used in the spreadsheet (first row). Keep these in sync
-// with the field names sent from the form in public/app.js.
-const COLUMNS = ['Fecha', 'DNI', 'Nombre', 'Apellido', 'FechaNacimiento'];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DISTRITOS = Object.keys(distritos);
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ---------------------------------------------------------------------------
-// Excel helpers
-// ---------------------------------------------------------------------------
-async function ensureWorkbook() {
-  if (fs.existsSync(EXCEL_PATH)) return;
+// GET /api/distritos -> ["Lima", "Ancon", ...] — el nombre (key) es el valor que se guarda.
+app.get('/api/distritos', (req, res) => {
+  res.json(DISTRITOS);
+});
 
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet(SHEET_NAME);
-  ws.addRow(COLUMNS);
-  fs.mkdirSync(path.dirname(EXCEL_PATH), { recursive: true });
-  await wb.xlsx.writeFile(EXCEL_PATH);
-}
+// GET /api/lookup/:documento -> { found: true, cliente: {...} } | { found: false }
+app.get('/api/lookup/:documento', async (req, res) => {
+  const documento = String(req.params.documento).trim();
+  try {
+    const cliente = await clientesRepo.lookupByDocumento(documento);
+    res.json(cliente ? { found: true, cliente } : { found: false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-async function readRows() {
-  await ensureWorkbook();
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(EXCEL_PATH);
-  const ws = wb.getWorksheet(SHEET_NAME);
-  if (!ws) return [];
+// POST /api/clientes -> crea o actualiza (por DOCUMENTO)
+app.post('/api/clientes', async (req, res) => {
+  const input = req.body || {};
 
-  const headerRow = ws.getRow(1).values; // 1-indexed, [empty, col1, col2, ...]
-  const headers = headerRow.slice(1).map((h) => String(h));
+  if (!input.DOCUMENTO || !String(input.DOCUMENTO).trim()) {
+    return res.status(400).json({ error: 'DOCUMENTO es requerido' });
+  }
+  if (!input.PACIENTE || !String(input.PACIENTE).trim()) {
+    return res.status(400).json({ error: 'PACIENTE es requerido' });
+  }
+  if (input.CORREO && !EMAIL_RE.test(String(input.CORREO).trim())) {
+    return res.status(400).json({ error: 'CORREO no es un email válido' });
+  }
+  if (input.DISTRITO && !DISTRITOS.includes(input.DISTRITO)) {
+    return res.status(400).json({ error: 'DISTRITO no es válido' });
+  }
 
-  const rows = [];
-  ws.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
-    const values = row.values.slice(1);
-    const obj = {};
-    headers.forEach((header, i) => {
-      obj[header] = values[i] ?? '';
+  try {
+    const cliente = await clientesRepo.saveCliente(input);
+    res.json({ ok: true, cliente });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/asistencias -> registra un check-in (fecha/hora/turno automáticos, tipo_doc/paciente desde la BD)
+app.post('/api/asistencias', async (req, res) => {
+  const { NRO_DOC, CATEGORIA } = req.body || {};
+
+  if (!NRO_DOC || !String(NRO_DOC).trim()) {
+    return res.status(400).json({ error: 'NRO_DOC es requerido' });
+  }
+
+  try {
+    const asistencia = await asistenciasRepo.createAsistencia({
+      nroDocumento: String(NRO_DOC).trim(),
+      categoria: CATEGORIA,
     });
-    rows.push(obj);
-  });
-  return rows;
-}
-
-async function writeRows(rows) {
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet(SHEET_NAME);
-  ws.addRow(COLUMNS);
-  rows.forEach((row) => {
-    ws.addRow(COLUMNS.map((col) => row[col] ?? ''));
-  });
-  await wb.xlsx.writeFile(EXCEL_PATH);
-}
-
-// ---------------------------------------------------------------------------
-// API
-// ---------------------------------------------------------------------------
-
-// GET /api/lookup/:dni -> { found: true, registro: {...} } | { found: false }
-app.get('/api/lookup/:dni', async (req, res) => {
-  const dni = String(req.params.dni).trim();
-  const rows = await readRows();
-  const match = rows.find((r) => String(r.DNI).trim() === dni);
-  if (match) {
-    res.json({ found: true, registro: match });
-  } else {
-    res.json({ found: false });
+    res.json({ ok: true, asistencia });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 
-// POST /api/registros -> guarda (crea o actualiza por DNI) un registro
-app.post('/api/registros', async (req, res) => {
-  const registro = req.body || {};
-  if (!registro.DNI) {
-    return res.status(400).json({ error: 'DNI es requerido' });
-  }
-
-  const rows = await readRows();
-  const idx = rows.findIndex((r) => String(r.DNI).trim() === String(registro.DNI).trim());
-
-  const row = {};
-  COLUMNS.forEach((col) => {
-    row[col] = registro[col] ?? '';
-  });
-
-  if (idx >= 0) {
-    rows[idx] = row;
-  } else {
-    rows.push(row);
-  }
-
-  await writeRows(rows);
-  res.json({ ok: true, registro: row });
-});
-
-app.listen(PORT, async () => {
-  await ensureWorkbook();
+app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
-  console.log(`Archivo Excel: ${EXCEL_PATH}`);
 });
