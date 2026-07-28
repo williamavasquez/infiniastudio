@@ -3,7 +3,11 @@ const path = require('path');
 const express = require('express');
 const clientesRepo = require('./lib/clientesRepo');
 const asistenciasRepo = require('./lib/asistenciasRepo');
+const adminRepo = require('./lib/adminRepo');
+const adminAuth = require('./lib/adminAuth');
+const { toCsv } = require('./lib/csv');
 const distritos = require('./lib/distritos.json');
+const { CATEGORIAS } = require('./lib/asistenciasRepo');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -72,6 +76,103 @@ app.post('/api/asistencias', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body || {};
+  if (!adminAuth.checkPassword(password)) {
+    return res.status(401).json({ error: 'Contraseña incorrecta' });
+  }
+  adminAuth.setSessionCookie(req, res);
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/logout', (req, res) => {
+  adminAuth.clearSessionCookie(req, res);
+  res.json({ ok: true });
+});
+
+app.get('/api/admin/session', (req, res) => {
+  res.json({ authenticated: adminAuth.isAuthenticated(req) });
+});
+
+app.get('/api/admin/dashboard', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const data = await adminRepo.getDashboard();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+function parseListParams(req) {
+  const { distrito, categoria, desde, hasta, q, offset } = req.query;
+  return {
+    distrito: distrito || null,
+    categoria: categoria || null,
+    desde: desde || null,
+    hasta: hasta || null,
+    q: q || null,
+    offset: Number(offset) || 0,
+    limit: 100,
+  };
+}
+
+app.get('/api/admin/clientes', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const data = await adminRepo.listClientes(parseListParams(req));
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/clientes/export', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const { distrito, categoria, desde, hasta, q } = req.query;
+    const rows = await adminRepo.listClientesAll({
+      distrito: distrito || null,
+      categoria: categoria || null,
+      desde: desde || null,
+      hasta: hasta || null,
+      q: q || null,
+    });
+    const csv = toCsv(rows, [
+      { key: 'documento', label: 'Documento' },
+      { key: 'tipo_doc', label: 'Tipo Doc' },
+      { key: 'paciente', label: 'Paciente' },
+      { key: 'apodo', label: 'Apodo' },
+      { key: 'ruc', label: 'RUC' },
+      { key: 'celular', label: 'Celular' },
+      { key: 'distrito', label: 'Distrito' },
+      { key: 'f_nacimiento', label: 'F Nacimiento' },
+      { key: 'correo', label: 'Correo' },
+      { key: 'direccion', label: 'Dirección' },
+      { key: 'fecha_creacion', label: 'Fecha Creación' },
+    ]);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="clientes.csv"');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/asistencias', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const data = await adminRepo.listAsistencias(parseListParams(req));
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/categorias', adminAuth.requireAdminAuth, (req, res) => {
+  res.json(CATEGORIAS);
 });
 
 app.listen(PORT, () => {

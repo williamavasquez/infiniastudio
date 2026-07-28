@@ -75,7 +75,7 @@ function calcularEdad(fNacimientoISO) {
     hoy.getUTCMonth() < nacimiento.getUTCMonth() ||
     (hoy.getUTCMonth() === nacimiento.getUTCMonth() && hoy.getUTCDate() < nacimiento.getUTCDate());
   if (aunNoCumplio) edad -= 1;
-  return String(Math.max(edad, 0));
+  return `${Math.max(edad, 0)} años`;
 }
 
 fNacimientoInput.addEventListener('input', () => {
@@ -101,6 +101,19 @@ function ocultarTodo() {
   vistaEncontrado.classList.add('hidden');
   panelAsistencia.classList.add('hidden');
   form.classList.add('hidden');
+}
+
+// Vuelve a la pantalla inicial de búsqueda, lista para el próximo documento
+// (útil tanto al cancelar como después de un check-in, como en un kiosco).
+function mostrarBusquedaInicial() {
+  clienteActual = null;
+  ocultarTodo();
+  limpiarFormulario();
+  documentoInput.readOnly = false;
+  documentoInput.value = '';
+  dniStatus.textContent = '';
+  dniStatus.className = 'status';
+  documentoInput.focus();
 }
 
 function mostrarVistaEncontrado(cliente) {
@@ -146,7 +159,7 @@ function mostrarFormulario({ editando }) {
 }
 
 let lookupTimer = null;
-const BUSQUEDA_DEBOUNCE_MS = 2000;
+const BUSQUEDA_DEBOUNCE_MS = 1500;
 
 documentoInput.addEventListener('input', () => {
   clearTimeout(lookupTimer);
@@ -208,12 +221,7 @@ btnEditar.addEventListener('click', () => {
 });
 
 btnCancelar.addEventListener('click', () => {
-  if (clienteActual) {
-    mostrarVistaEncontrado(clienteActual);
-  } else {
-    documentoInput.readOnly = false;
-    ocultarTodo();
-  }
+  mostrarBusquedaInicial();
 });
 
 btnAsistencia.addEventListener('click', () => {
@@ -241,8 +249,8 @@ btnConfirmarAsistencia.addEventListener('click', async () => {
     if (!res.ok) throw new Error(data.error || 'Error al registrar asistencia');
 
     const a = data.asistencia;
-    asistenciaMessage.textContent = `Asistencia registrada: ${a.turno} — ${a.categoria} a las ${a.hora_atencion}`;
-    asistenciaMessage.className = 'message ok';
+    mostrarToast(`Asistencia registrada: ${a.turno} — ${a.categoria} a las ${a.hora_atencion}`);
+    mostrarBusquedaInicial();
   } catch (err) {
     asistenciaMessage.textContent = err.message;
     asistenciaMessage.className = 'message error';

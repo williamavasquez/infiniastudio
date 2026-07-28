@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Infinia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@400;500;600;700&family=EB+Garamond:ital@0;1&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <!-- Login -->
+  <main id="login-screen" class="login-card">
+    <div class="logo-placeholder">
+      <img
+        src="/logo.png"
+        alt="Infinia"
+        onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+        onload="this.nextElementSibling.style.display='none'; this.parentElement.classList.add('has-logo');"
+      />
+      <span style="display: none">LOGO</span>
+    </div>
+    <h1>Panel de Administración</h1>
+    <form id="login-form" autocomplete="off">
+      <label>
+        Contraseña
+        <input type="password" id="login-password" autocomplete="off" autofocus />
+      </label>
+      <button type="submit">Ingresar</button>
+      <p id="login-message" class="message"></p>
+    </form>
+  </main>
+
+  <!-- Admin panel -->
+  <div id="admin-panel" class="admin-panel hidden">
+    <header class="admin-header">
+      <div class="admin-header-left">
+        <div class="logo-placeholder small">
+          <img
+            src="/logo.png"
+            alt="Infinia"
+            onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+            onload="this.nextElementSibling.style.display='none'; this.parentElement.classList.add('has-logo');"
+          />
+          <span style="display: none">LOGO</span>
+        </div>
+        <h1>Admin</h1>
+      </div>
+      <nav class="admin-nav">
+        <button type="button" class="nav-tab active" data-tab="dashboard">Dashboard</button>
+        <button type="button" class="nav-tab" data-tab="usuarios">Usuarios</button>
+        <button type="button" class="nav-tab" data-tab="checkins">Check-ins</button>
+      </nav>
+      <button type="button" id="btn-logout" class="secondary">Salir</button>
+    </header>
+
+    <!-- Dashboard -->
+    <section id="tab-dashboard" class="tab-panel">
+      <div class="stat-cards">
+        <div class="stat-card">
+          <span class="stat-label">Clientes registrados</span>
+          <span class="stat-value" id="stat-total-clientes">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Check-ins (últimas 24h)</span>
+          <span class="stat-value" id="stat-checkins-dia">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Check-ins (última semana)</span>
+          <span class="stat-value" id="stat-checkins-semana">—</span>
+        </div>
+      </div>
+
+      <h2>Últimos 20 clientes registrados</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Documento</th>
+              <th>Paciente</th>
+              <th>Apodo</th>
+              <th>Distrito</th>
+              <th>Fecha de creación</th>
+            </tr>
+          </thead>
+          <tbody id="ultimos-clientes-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Usuarios -->
+    <section id="tab-usuarios" class="tab-panel hidden">
+      <div class="filter-bar">
+        <input type="text" id="usuarios-q" placeholder="Buscar por documento o paciente..." class="search-input" />
+        <select id="usuarios-distrito">
+          <option value="">Todos los distritos</option>
+        </select>
+        <select id="usuarios-categoria">
+          <option value="">Todas las categorías</option>
+        </select>
+        <label class="filter-date">
+          Desde
+          <input type="date" id="usuarios-desde" />
+        </label>
+        <label class="filter-date">
+          Hasta
+          <input type="date" id="usuarios-hasta" />
+        </label>
+        <button type="button" id="btn-export-csv" class="secondary">Exportar CSV</button>
+      </div>
+
+      <div class="table-wrap" id="usuarios-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Documento</th>
+              <th>Tipo Doc</th>
+              <th>Paciente</th>
+              <th>Apodo</th>
+              <th>Distrito</th>
+              <th>Celular</th>
+              <th>Correo</th>
+              <th>Fecha de creación</th>
+            </tr>
+          </thead>
+          <tbody id="usuarios-body"></tbody>
+        </table>
+        <p id="usuarios-status" class="table-status"></p>
+      </div>
+    </section>
+
+    <!-- Check-ins -->
+    <section id="tab-checkins" class="tab-panel hidden">
+      <div class="filter-bar">
+        <input type="text" id="checkins-q" placeholder="Buscar por documento o paciente..." class="search-input" />
+        <select id="checkins-distrito">
+          <option value="">Todos los distritos</option>
+        </select>
+        <select id="checkins-categoria">
+          <option value="">Todas las categorías</option>
+        </select>
+        <label class="filter-date">
+          Desde
+          <input type="date" id="checkins-desde" />
+        </label>
+        <label class="filter-date">
+          Hasta
+          <input type="date" id="checkins-hasta" />
+        </label>
+      </div>
+
+      <div class="table-wrap" id="checkins-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>Turno</th>
+              <th>Documento</th>
+              <th>Paciente</th>
+              <th>Distrito</th>
+              <th>Categoría</th>
+            </tr>
+          </thead>
+          <tbody id="checkins-body"></tbody>
+        </table>
+        <p id="checkins-status" class="table-status"></p>
+      </div>
+    </section>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

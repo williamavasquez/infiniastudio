@@ -53,6 +53,19 @@ body {
   justify-content: center;
 }
 
+.logo-placeholder img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border: none;
+  padding: 0;
+}
+
+.logo-placeholder.has-logo {
+  border: none;
+  background: transparent;
+}
+
 .logo-placeholder span {
   font-family: var(--font-sans);
   font-size: 0.75rem;
@@ -115,6 +128,11 @@ form {
 .dni-row button {
   margin-top: 0;
   white-space: nowrap;
+}
+
+#vista-encontrado,
+#panel-asistencia {
+  margin-top: 22px;
 }
 
 .categoria-group {

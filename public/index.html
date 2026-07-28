@@ -15,8 +15,14 @@
 <body>
   <main class="card">
     <div class="narrow">
-      <div class="logo-placeholder" aria-hidden="true">
-        <span>LOGO</span>
+      <div class="logo-placeholder">
+        <img
+          src="/logo.png"
+          alt="Infinia"
+          onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+          onload="this.nextElementSibling.style.display='none'; this.parentElement.classList.add('has-logo');"
+        />
+        <span style="display: none">LOGO</span>
       </div>
       <h1>Formulario de Registro</h1>
       <p class="hint">Ingresá el documento para buscar. Si existe, vas a ver un saludo; si no, se te va a pedir que cargues los datos.</p>
