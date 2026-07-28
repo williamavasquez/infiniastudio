@@ -131,8 +131,13 @@ form {
 }
 
 #vista-encontrado,
-#panel-asistencia {
+#panel-asistencia,
+#vista-no-encontrado {
   margin-top: 22px;
+}
+
+#vista-no-encontrado .hint {
+  margin-bottom: 18px;
 }
 
 .categoria-group {

@@ -7,6 +7,9 @@ const btnEditar = document.getElementById('btn-editar');
 const btnAsistencia = document.getElementById('btn-asistencia');
 const mensajeBienvenida = document.getElementById('mensaje-bienvenida');
 
+const vistaNoEncontrado = document.getElementById('vista-no-encontrado');
+const btnRegistrarme = document.getElementById('btn-registrarme');
+
 const panelAsistencia = document.getElementById('panel-asistencia');
 const categoriaRadios = document.querySelectorAll('input[name="categoria"]');
 
@@ -100,6 +103,7 @@ function limpiarFormulario() {
 function ocultarTodo() {
   vistaEncontrado.classList.add('hidden');
   panelAsistencia.classList.add('hidden');
+  vistaNoEncontrado.classList.add('hidden');
   form.classList.add('hidden');
 }
 
@@ -121,6 +125,12 @@ function mostrarVistaEncontrado(cliente) {
   mensajeBienvenida.textContent = `Bienvenido/a ${cliente.apodo || cliente.paciente}`;
   ocultarTodo();
   vistaEncontrado.classList.remove('hidden');
+}
+
+function mostrarNoEncontrado() {
+  documentoInput.readOnly = false;
+  ocultarTodo();
+  vistaNoEncontrado.classList.remove('hidden');
 }
 
 function mostrarPanelAsistencia() {
@@ -206,9 +216,9 @@ async function buscarDocumento(documento) {
       mostrarVistaEncontrado(clienteActual);
     } else {
       clienteActual = null;
-      dniStatus.textContent = 'No encontrado — completá los datos';
-      dniStatus.className = 'status not-found';
-      mostrarFormulario({ editando: false });
+      dniStatus.textContent = '';
+      dniStatus.className = 'status';
+      mostrarNoEncontrado();
     }
   } catch (err) {
     dniStatus.textContent = 'Error al buscar';
@@ -218,6 +228,10 @@ async function buscarDocumento(documento) {
 
 btnEditar.addEventListener('click', () => {
   mostrarFormulario({ editando: true });
+});
+
+btnRegistrarme.addEventListener('click', () => {
+  mostrarFormulario({ editando: false });
 });
 
 btnCancelar.addEventListener('click', () => {

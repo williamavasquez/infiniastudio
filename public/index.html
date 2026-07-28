@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Formulario de Registro</title>
+  <title>Infinia</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -24,8 +24,8 @@
         />
         <span style="display: none">LOGO</span>
       </div>
-      <h1>Formulario de Registro</h1>
-      <p class="hint">Ingresá el documento para buscar. Si existe, vas a ver un saludo; si no, se te va a pedir que cargues los datos.</p>
+      <h1>¡Bienvenido a Infinia!</h1>
+      <p class="hint">Ingresa tu DNI para comenzar</p>
 
       <div class="dni-row">
         <label class="dni-label">
@@ -72,9 +72,15 @@
         </div>
         <p id="asistencia-message" class="message"></p>
       </section>
+      <!-- Estado: documento no encontrado (todavía no se muestra el formulario) -->
+      <section id="vista-no-encontrado" class="hidden">
+        <p class="bienvenida">¡Aún no te encontramos!</p>
+        <p class="hint">Parece que es tu primera vez en Infinia. Completa tus datos para registrarte.</p>
+        <button type="button" id="btn-registrarme">Registrarme</button>
+      </section>
     </div>
 
-    <!-- Estado: documento no encontrado o en edición -->
+    <!-- Estado: completando datos (registro nuevo o edición) -->
     <form id="registro-form" class="hidden" autocomplete="off">
       <label class="full-width">
         Paciente
