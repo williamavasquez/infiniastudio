@@ -7,6 +7,8 @@ const adminRepo = require('./lib/adminRepo');
 const adminAuth = require('./lib/adminAuth');
 const { toCsv } = require('./lib/csv');
 const distritos = require('./lib/distritos.json');
+const { resolveRange } = require('./lib/dateRanges');
+const { peruNow } = require('./lib/peruTime');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -100,9 +102,17 @@ app.get('/api/admin/session', (req, res) => {
   res.json({ authenticated: adminAuth.isAuthenticated(req) });
 });
 
+// GET /api/admin/hoy -> { fecha: "YYYY-MM-DD" } — hoy en Perú, para que el
+// front pueda prefijar filtros de fecha sin depender del timezone local.
+app.get('/api/admin/hoy', adminAuth.requireAdminAuth, (req, res) => {
+  res.json({ fecha: peruNow().fecha });
+});
+
 app.get('/api/admin/dashboard', adminAuth.requireAdminAuth, async (req, res) => {
   try {
-    const data = await adminRepo.getDashboard();
+    const { preset, desde, hasta } = req.query;
+    const rango = resolveRange(preset || 'hoy', desde, hasta);
+    const data = await adminRepo.getDashboard(rango);
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -145,17 +155,17 @@ app.get('/api/admin/clientes/export', adminAuth.requireAdminAuth, async (req, re
     });
     const csv = toCsv(rows, [
       { key: 'documento', label: 'Documento' },
-      { key: 'tipo_doc', label: 'Tipo Doc' },
+      { key: 'tipo_doc', label: 'Tipo de documento' },
       { key: 'paciente', label: 'Paciente' },
-      { key: 'apodo', label: 'Apodo' },
-      { key: 'ruc', label: 'RUC' },
+      { key: 'apodo', label: 'Nombre preferido' },
       { key: 'celular', label: 'Celular' },
       { key: 'distrito', label: 'Distrito' },
-      { key: 'f_nacimiento', label: 'F Nacimiento' },
+      { key: 'f_nacimiento', label: 'Fecha de nacimiento' },
+      { key: 'edad', label: 'Edad' },
       { key: 'sexo', label: 'Sexo' },
       { key: 'correo', label: 'Correo' },
       { key: 'direccion', label: 'Dirección' },
-      { key: 'fecha_creacion', label: 'Fecha Creación' },
+      { key: 'fecha_creacion', label: 'Fecha de registro' },
     ]);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="clientes.csv"');
@@ -168,6 +178,16 @@ app.get('/api/admin/clientes/export', adminAuth.requireAdminAuth, async (req, re
 app.get('/api/admin/asistencias', adminAuth.requireAdminAuth, async (req, res) => {
   try {
     const data = await adminRepo.listAsistencias(parseListParams(req));
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/asistencias/resumen', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const params = parseListParams(req);
+    const data = await adminRepo.getResumenAsistencias(params);
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });

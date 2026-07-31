@@ -53,25 +53,56 @@
       <nav class="admin-nav">
         <button type="button" class="nav-tab active" data-tab="dashboard">Dashboard</button>
         <button type="button" class="nav-tab" data-tab="usuarios">Usuarios</button>
-        <button type="button" class="nav-tab" data-tab="checkins">Check-ins</button>
+        <button type="button" class="nav-tab" data-tab="checkins">Asistencias</button>
       </nav>
       <button type="button" id="btn-logout" class="secondary">Salir</button>
     </header>
 
     <!-- Dashboard -->
     <section id="tab-dashboard" class="tab-panel">
+      <div class="filter-bar">
+        <select id="dashboard-preset">
+          <option value="hoy">Hoy</option>
+          <option value="ayer">Ayer</option>
+          <option value="7dias">Últimos 7 días</option>
+          <option value="este_mes">Este mes</option>
+          <option value="mes_anterior">Mes anterior</option>
+          <option value="rango">Rango de fechas...</option>
+        </select>
+        <label class="filter-date hidden" id="dashboard-desde-wrap">
+          Desde
+          <input type="date" id="dashboard-desde" />
+        </label>
+        <label class="filter-date hidden" id="dashboard-hasta-wrap">
+          Hasta
+          <input type="date" id="dashboard-hasta" />
+        </label>
+      </div>
+
       <div class="stat-cards">
         <div class="stat-card">
-          <span class="stat-label">Clientes registrados</span>
+          <span class="stat-label">Clientes registrados (total)</span>
           <span class="stat-value" id="stat-total-clientes">—</span>
         </div>
         <div class="stat-card">
-          <span class="stat-label">Check-ins (últimas 24h)</span>
-          <span class="stat-value" id="stat-checkins-dia">—</span>
+          <span class="stat-label">Clientes únicos</span>
+          <span class="stat-value" id="stat-clientes-unicos">—</span>
         </div>
         <div class="stat-card">
-          <span class="stat-label">Check-ins (última semana)</span>
-          <span class="stat-value" id="stat-checkins-semana">—</span>
+          <span class="stat-label">Asistencias</span>
+          <span class="stat-value" id="stat-asistencias">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Servicios realizados</span>
+          <span class="stat-value" id="stat-servicios">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Pilates</span>
+          <span class="stat-value" id="stat-pilates">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Estética</span>
+          <span class="stat-value" id="stat-estetica">—</span>
         </div>
       </div>
 
@@ -82,7 +113,7 @@
             <tr>
               <th>Documento</th>
               <th>Paciente</th>
-              <th>Apodo</th>
+              <th>Nombre preferido</th>
               <th>Distrito</th>
               <th>Fecha de creación</th>
             </tr>
@@ -95,7 +126,7 @@
     <!-- Usuarios -->
     <section id="tab-usuarios" class="tab-panel hidden">
       <div class="filter-bar">
-        <input type="text" id="usuarios-q" placeholder="Buscar por documento o paciente..." class="search-input" />
+        <input type="text" id="usuarios-q" placeholder="Buscar por documento, nombre, celular o correo..." class="search-input" />
         <select id="usuarios-distrito">
           <option value="">Todos los distritos</option>
         </select>
@@ -121,13 +152,17 @@
           <thead>
             <tr>
               <th>Documento</th>
-              <th>Tipo Doc</th>
+              <th>Tipo de documento</th>
               <th>Paciente</th>
-              <th>Apodo</th>
-              <th>Distrito</th>
+              <th>Nombre preferido</th>
               <th>Celular</th>
+              <th>Distrito</th>
+              <th>Fecha de nacimiento</th>
+              <th>Edad</th>
+              <th>Sexo</th>
               <th>Correo</th>
-              <th>Fecha de creación</th>
+              <th>Dirección</th>
+              <th>Fecha de registro</th>
             </tr>
           </thead>
           <tbody id="usuarios-body"></tbody>
@@ -138,6 +173,20 @@
 
     <!-- Check-ins -->
     <section id="tab-checkins" class="tab-panel hidden">
+      <div class="stat-cards">
+        <div class="stat-card">
+          <span class="stat-label">Clientes únicos</span>
+          <span class="stat-value" id="checkins-stat-clientes">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Asistencias</span>
+          <span class="stat-value" id="checkins-stat-asistencias">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Servicios realizados</span>
+          <span class="stat-value" id="checkins-stat-servicios">—</span>
+        </div>
+      </div>
       <div class="filter-bar">
         <input type="text" id="checkins-q" placeholder="Buscar por documento o paciente..." class="search-input" />
         <select id="checkins-distrito">

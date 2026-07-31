@@ -94,12 +94,20 @@ async function initPanel() {
   if (panelInitialized) return;
   panelInitialized = true;
 
-  distritosCache = await fetch('/api/distritos').then((r) => r.json());
+  const [distritos, hoyData] = await Promise.all([
+    fetch('/api/distritos').then((r) => r.json()),
+    fetch('/api/admin/hoy').then((r) => r.json()),
+  ]);
+  distritosCache = distritos;
 
   llenarSelect(document.getElementById('usuarios-distrito'), distritosCache);
   llenarSelect(document.getElementById('checkins-distrito'), distritosCache);
 
-  cargarDashboard();
+  // Por defecto, Asistencias solo muestra las del día de hoy (en Perú).
+  document.getElementById('checkins-desde').value = hoyData.fecha;
+  document.getElementById('checkins-hasta').value = hoyData.fecha;
+
+  configurarDashboard();
   configurarTabla(usuariosConfig);
   configurarTabla(checkinsConfig);
 }
@@ -117,13 +125,42 @@ function llenarSelect(select, valores) {
 // Dashboard
 // ---------------------------------------------------------------------------
 
+const dashboardPreset = document.getElementById('dashboard-preset');
+const dashboardDesde = document.getElementById('dashboard-desde');
+const dashboardHasta = document.getElementById('dashboard-hasta');
+const dashboardDesdeWrap = document.getElementById('dashboard-desde-wrap');
+const dashboardHastaWrap = document.getElementById('dashboard-hasta-wrap');
+
+function configurarDashboard() {
+  dashboardPreset.addEventListener('change', () => {
+    const esRango = dashboardPreset.value === 'rango';
+    dashboardDesdeWrap.classList.toggle('hidden', !esRango);
+    dashboardHastaWrap.classList.toggle('hidden', !esRango);
+    if (!esRango || (dashboardDesde.value && dashboardHasta.value)) cargarDashboard();
+  });
+  dashboardDesde.addEventListener('change', cargarDashboard);
+  dashboardHasta.addEventListener('change', cargarDashboard);
+
+  cargarDashboard();
+}
+
 async function cargarDashboard() {
-  const res = await fetch('/api/admin/dashboard');
+  const params = new URLSearchParams({ preset: dashboardPreset.value });
+  if (dashboardPreset.value === 'rango') {
+    if (!dashboardDesde.value || !dashboardHasta.value) return;
+    params.set('desde', dashboardDesde.value);
+    params.set('hasta', dashboardHasta.value);
+  }
+
+  const res = await fetch(`/api/admin/dashboard?${params.toString()}`);
   const data = await res.json();
 
   document.getElementById('stat-total-clientes').textContent = data.totalClientes;
-  document.getElementById('stat-checkins-dia').textContent = data.checkinsUltimoDia;
-  document.getElementById('stat-checkins-semana').textContent = data.checkinsUltimaSemana;
+  document.getElementById('stat-clientes-unicos').textContent = data.clientesUnicos;
+  document.getElementById('stat-asistencias').textContent = data.asistencias;
+  document.getElementById('stat-servicios').textContent = data.serviciosRealizados;
+  document.getElementById('stat-pilates').textContent = data.pilates;
+  document.getElementById('stat-estetica').textContent = data.estetica;
 
   const body = document.getElementById('ultimos-clientes-body');
   body.innerHTML = '';
@@ -174,6 +211,7 @@ function configurarTabla(config) {
       offset = 0;
       hasMore = true;
       config.body.innerHTML = '';
+      if (config.onFiltrosCambian) config.onFiltrosCambian(filtros());
     }
     if (!hasMore) return;
 
@@ -241,9 +279,13 @@ const usuariosConfig = {
       <td>${c.tipo_doc || ''}</td>
       <td>${c.paciente || ''}</td>
       <td>${c.apodo || ''}</td>
-      <td>${c.distrito || ''}</td>
       <td>${c.celular || ''}</td>
+      <td>${c.distrito || ''}</td>
+      <td>${fmtFecha(c.f_nacimiento)}</td>
+      <td>${c.edad ?? ''}</td>
+      <td>${c.sexo || ''}</td>
       <td>${c.correo || ''}</td>
+      <td>${c.direccion || ''}</td>
       <td>${fmtFechaHora(c.fecha_creacion)}</td>
     `;
     return tr;
@@ -269,6 +311,23 @@ document.getElementById('btn-export-csv').addEventListener('click', () => {
 // Check-ins tab
 // ---------------------------------------------------------------------------
 
+async function cargarResumenAsistencias(filtros) {
+  const params = new URLSearchParams(filtros);
+  [...params.keys()].forEach((k) => {
+    if (!params.get(k)) params.delete(k);
+  });
+
+  try {
+    const res = await fetch(`/api/admin/asistencias/resumen?${params.toString()}`);
+    const data = await res.json();
+    document.getElementById('checkins-stat-clientes').textContent = data.clientesUnicos;
+    document.getElementById('checkins-stat-asistencias').textContent = data.asistencias;
+    document.getElementById('checkins-stat-servicios').textContent = data.serviciosRealizados;
+  } catch (err) {
+    // Los números de resumen quedan en su último valor si falla.
+  }
+}
+
 const checkinsConfig = {
   endpoint: '/api/admin/asistencias',
   qInput: document.getElementById('checkins-q'),
@@ -280,6 +339,7 @@ const checkinsConfig = {
   scrollContainer: document.getElementById('checkins-scroll'),
   body: document.getElementById('checkins-body'),
   statusEl: document.getElementById('checkins-status'),
+  onFiltrosCambian: cargarResumenAsistencias,
   renderRow(a) {
     const tr = document.createElement('tr');
     tr.innerHTML = `

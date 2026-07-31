@@ -20,7 +20,6 @@ const form = document.getElementById('registro-form');
 const tipoDocInput = document.getElementById('tipo-doc');
 const pacienteInput = document.getElementById('paciente');
 const apodoInput = document.getElementById('apodo');
-const rucInput = document.getElementById('ruc');
 const celularInput = document.getElementById('celular');
 const distritoInput = document.getElementById('distrito');
 const fNacimientoInput = document.getElementById('f-nacimiento');
@@ -85,7 +84,6 @@ function limpiarFormulario() {
   tipoDocInput.value = 'DNI';
   pacienteInput.value = '';
   apodoInput.value = '';
-  rucInput.value = '';
   celularInput.value = '';
   distritoInput.value = '';
   fNacimientoInput.value = '';
@@ -149,7 +147,6 @@ function mostrarFormulario({ editando }) {
     tipoDocInput.value = clienteActual.tipo_doc || 'DNI';
     pacienteInput.value = clienteActual.paciente || '';
     apodoInput.value = clienteActual.apodo || '';
-    rucInput.value = clienteActual.ruc || '';
     celularInput.value = clienteActual.celular || '';
     distritoInput.value = clienteActual.distrito || '';
     fNacimientoInput.value = clienteActual.f_nacimiento || '';
@@ -311,7 +308,6 @@ form.addEventListener('submit', async (e) => {
     TIPO_DOC: tipoDocInput.value,
     PACIENTE: pacienteInput.value.trim(),
     APODO: apodoInput.value.trim(),
-    RUC: rucInput.value.trim(),
     CELULAR: celularInput.value.trim(),
     DISTRITO: distritoInput.value.trim(),
     F_NACIMIENTO: fNacimientoInput.value,
