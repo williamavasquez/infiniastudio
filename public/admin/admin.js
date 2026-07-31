@@ -13,7 +13,6 @@ const tabPanels = {
 };
 
 let distritosCache = [];
-let categoriasCache = [];
 
 function fmtFecha(iso) {
   if (!iso) return '';
@@ -95,17 +94,10 @@ async function initPanel() {
   if (panelInitialized) return;
   panelInitialized = true;
 
-  const [distritosRes, categoriasRes] = await Promise.all([
-    fetch('/api/distritos').then((r) => r.json()),
-    fetch('/api/admin/categorias').then((r) => r.json()),
-  ]);
-  distritosCache = distritosRes;
-  categoriasCache = categoriasRes;
+  distritosCache = await fetch('/api/distritos').then((r) => r.json());
 
   llenarSelect(document.getElementById('usuarios-distrito'), distritosCache);
-  llenarSelect(document.getElementById('usuarios-categoria'), categoriasCache);
   llenarSelect(document.getElementById('checkins-distrito'), distritosCache);
-  llenarSelect(document.getElementById('checkins-categoria'), categoriasCache);
 
   cargarDashboard();
   configurarTabla(usuariosConfig);
@@ -169,7 +161,8 @@ function configurarTabla(config) {
     return {
       q: config.qInput.value.trim(),
       distrito: config.distritoInput.value,
-      categoria: config.categoriaInput.value,
+      area: config.areaInput.value,
+      servicio: config.servicioInput.value.trim(),
       desde: config.desdeInput.value,
       hasta: config.hastaInput.value,
     };
@@ -211,7 +204,7 @@ function configurarTabla(config) {
 
   const recargar = debounce(() => cargarPagina({ reset: true }), 400);
 
-  [config.qInput, config.distritoInput, config.categoriaInput, config.desdeInput, config.hastaInput].forEach((el) => {
+  [config.qInput, config.distritoInput, config.areaInput, config.servicioInput, config.desdeInput, config.hastaInput].forEach((el) => {
     el.addEventListener('input', recargar);
     el.addEventListener('change', recargar);
   });
@@ -234,7 +227,8 @@ const usuariosConfig = {
   endpoint: '/api/admin/clientes',
   qInput: document.getElementById('usuarios-q'),
   distritoInput: document.getElementById('usuarios-distrito'),
-  categoriaInput: document.getElementById('usuarios-categoria'),
+  areaInput: document.getElementById('usuarios-area'),
+  servicioInput: document.getElementById('usuarios-servicio'),
   desdeInput: document.getElementById('usuarios-desde'),
   hastaInput: document.getElementById('usuarios-hasta'),
   scrollContainer: document.getElementById('usuarios-scroll'),
@@ -260,7 +254,8 @@ document.getElementById('btn-export-csv').addEventListener('click', () => {
   const params = new URLSearchParams({
     q: usuariosConfig.qInput.value.trim(),
     distrito: usuariosConfig.distritoInput.value,
-    categoria: usuariosConfig.categoriaInput.value,
+    area: usuariosConfig.areaInput.value,
+    servicio: usuariosConfig.servicioInput.value.trim(),
     desde: usuariosConfig.desdeInput.value,
     hasta: usuariosConfig.hastaInput.value,
   });
@@ -278,7 +273,8 @@ const checkinsConfig = {
   endpoint: '/api/admin/asistencias',
   qInput: document.getElementById('checkins-q'),
   distritoInput: document.getElementById('checkins-distrito'),
-  categoriaInput: document.getElementById('checkins-categoria'),
+  areaInput: document.getElementById('checkins-area'),
+  servicioInput: document.getElementById('checkins-servicio'),
   desdeInput: document.getElementById('checkins-desde'),
   hastaInput: document.getElementById('checkins-hasta'),
   scrollContainer: document.getElementById('checkins-scroll'),
@@ -293,7 +289,8 @@ const checkinsConfig = {
       <td>${a.nro_doc}</td>
       <td>${a.paciente || ''}</td>
       <td>${a.distrito || ''}</td>
-      <td>${a.categoria || ''}</td>
+      <td>${a.area || ''}</td>
+      <td>${a.servicio || ''}</td>
     `;
     return tr;
   },

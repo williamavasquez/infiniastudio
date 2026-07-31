@@ -99,9 +99,12 @@
         <select id="usuarios-distrito">
           <option value="">Todos los distritos</option>
         </select>
-        <select id="usuarios-categoria">
-          <option value="">Todas las categorías</option>
+        <select id="usuarios-area">
+          <option value="">Todas las áreas</option>
+          <option value="Pilates">Pilates</option>
+          <option value="Estética">Estética</option>
         </select>
+        <input type="text" id="usuarios-servicio" placeholder="Servicio..." class="search-input" />
         <label class="filter-date">
           Desde
           <input type="date" id="usuarios-desde" />
@@ -140,9 +143,12 @@
         <select id="checkins-distrito">
           <option value="">Todos los distritos</option>
         </select>
-        <select id="checkins-categoria">
-          <option value="">Todas las categorías</option>
+        <select id="checkins-area">
+          <option value="">Todas las áreas</option>
+          <option value="Pilates">Pilates</option>
+          <option value="Estética">Estética</option>
         </select>
+        <input type="text" id="checkins-servicio" placeholder="Servicio..." class="search-input" />
         <label class="filter-date">
           Desde
           <input type="date" id="checkins-desde" />
@@ -163,7 +169,8 @@
               <th>Documento</th>
               <th>Paciente</th>
               <th>Distrito</th>
-              <th>Categoría</th>
+              <th>Área</th>
+              <th>Servicio</th>
             </tr>
           </thead>
           <tbody id="checkins-body"></tbody>

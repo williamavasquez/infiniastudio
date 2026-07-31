@@ -7,7 +7,6 @@ const adminRepo = require('./lib/adminRepo');
 const adminAuth = require('./lib/adminAuth');
 const { toCsv } = require('./lib/csv');
 const distritos = require('./lib/distritos.json');
-const { CATEGORIAS } = require('./lib/asistenciasRepo');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -59,9 +58,9 @@ app.post('/api/clientes', async (req, res) => {
   }
 });
 
-// POST /api/asistencias -> registra un check-in (fecha/hora/turno automáticos, tipo_doc/paciente desde la BD)
+// POST /api/asistencias -> registra una asistencia (fecha/hora/turno automáticos, tipo_doc/paciente desde la BD)
 app.post('/api/asistencias', async (req, res) => {
-  const { NRO_DOC, CATEGORIA } = req.body || {};
+  const { NRO_DOC, AREA, SERVICIO } = req.body || {};
 
   if (!NRO_DOC || !String(NRO_DOC).trim()) {
     return res.status(400).json({ error: 'NRO_DOC es requerido' });
@@ -70,7 +69,8 @@ app.post('/api/asistencias', async (req, res) => {
   try {
     const asistencia = await asistenciasRepo.createAsistencia({
       nroDocumento: String(NRO_DOC).trim(),
-      categoria: CATEGORIA,
+      area: AREA,
+      servicio: SERVICIO,
     });
     res.json({ ok: true, asistencia });
   } catch (err) {
@@ -110,10 +110,11 @@ app.get('/api/admin/dashboard', adminAuth.requireAdminAuth, async (req, res) => 
 });
 
 function parseListParams(req) {
-  const { distrito, categoria, desde, hasta, q, offset } = req.query;
+  const { distrito, area, servicio, desde, hasta, q, offset } = req.query;
   return {
     distrito: distrito || null,
-    categoria: categoria || null,
+    area: area || null,
+    servicio: servicio || null,
     desde: desde || null,
     hasta: hasta || null,
     q: q || null,
@@ -133,10 +134,11 @@ app.get('/api/admin/clientes', adminAuth.requireAdminAuth, async (req, res) => {
 
 app.get('/api/admin/clientes/export', adminAuth.requireAdminAuth, async (req, res) => {
   try {
-    const { distrito, categoria, desde, hasta, q } = req.query;
+    const { distrito, area, servicio, desde, hasta, q } = req.query;
     const rows = await adminRepo.listClientesAll({
       distrito: distrito || null,
-      categoria: categoria || null,
+      area: area || null,
+      servicio: servicio || null,
       desde: desde || null,
       hasta: hasta || null,
       q: q || null,
@@ -150,6 +152,7 @@ app.get('/api/admin/clientes/export', adminAuth.requireAdminAuth, async (req, re
       { key: 'celular', label: 'Celular' },
       { key: 'distrito', label: 'Distrito' },
       { key: 'f_nacimiento', label: 'F Nacimiento' },
+      { key: 'sexo', label: 'Sexo' },
       { key: 'correo', label: 'Correo' },
       { key: 'direccion', label: 'Dirección' },
       { key: 'fecha_creacion', label: 'Fecha Creación' },
@@ -169,10 +172,6 @@ app.get('/api/admin/asistencias', adminAuth.requireAdminAuth, async (req, res) =
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
-
-app.get('/api/admin/categorias', adminAuth.requireAdminAuth, (req, res) => {
-  res.json(CATEGORIAS);
 });
 
 app.listen(PORT, () => {

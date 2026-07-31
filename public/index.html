@@ -36,42 +36,6 @@
       </div>
       <span id="dni-status" class="status"></span>
 
-      <!-- Estado: documento encontrado -->
-      <section id="vista-encontrado" class="hidden">
-        <p id="mensaje-bienvenida" class="bienvenida"></p>
-        <div class="form-actions">
-          <button type="button" id="btn-asistencia">Registrar Asistencia</button>
-          <button type="button" id="btn-editar" class="secondary">Actualizar</button>
-        </div>
-      </section>
-
-      <!-- Estado: registrando asistencia -->
-      <section id="panel-asistencia" class="hidden">
-        <fieldset class="categoria-group">
-          <legend>Categoría</legend>
-          <label class="radio-option">
-            <input type="radio" name="categoria" value="Asistencia Estética" checked />
-            Asistencia Estética
-          </label>
-          <label class="radio-option">
-            <input type="radio" name="categoria" value="Asistencia Pilates" />
-            Asistencia Pilates
-          </label>
-          <label class="radio-option">
-            <input type="radio" name="categoria" value="Clase de prueba" />
-            Clase de prueba
-          </label>
-          <label class="radio-option">
-            <input type="radio" name="categoria" value="Consulta Medica" />
-            Consulta Medica
-          </label>
-        </fieldset>
-        <div class="form-actions">
-          <button type="button" id="btn-confirmar-asistencia">Confirmar Asistencia</button>
-          <button type="button" id="btn-cancelar-asistencia" class="secondary">Cancelar</button>
-        </div>
-        <p id="asistencia-message" class="message"></p>
-      </section>
       <!-- Estado: documento no encontrado (todavía no se muestra el formulario) -->
       <section id="vista-no-encontrado" class="hidden">
         <p class="bienvenida">¡Aún no te encontramos!</p>
@@ -79,6 +43,47 @@
         <button type="button" id="btn-registrarme">Registrarme</button>
       </section>
     </div>
+
+    <!-- Estado: documento encontrado -> elegir servicio -->
+    <section id="vista-servicio" class="hidden">
+      <p id="mensaje-bienvenida" class="bienvenida"></p>
+
+      <div id="servicios-grid" class="servicios-grid">
+        <div class="servicio-bloque">
+          <h3>Pilates</h3>
+          <button type="button" class="btn-servicio" data-area="Pilates" data-servicio="Clase Grupal">Clase Grupal</button>
+          <button type="button" class="btn-servicio" data-area="Pilates" data-servicio="Clase Personalizada">Clase Personalizada</button>
+          <button type="button" class="btn-servicio" data-area="Pilates" data-servicio="Clase Teens">Clase Teens</button>
+          <button type="button" class="btn-servicio" data-area="Pilates" data-servicio="Clase Senior">Clase Senior</button>
+        </div>
+        <div class="servicio-bloque">
+          <h3>Estética</h3>
+          <button type="button" class="btn-servicio" data-area="Estética" data-servicio="Consulta Estética">Consulta Estética</button>
+          <button type="button" class="btn-servicio" data-area="Estética" data-servicio="Sesión INDIBA">Sesión INDIBA</button>
+          <button type="button" class="btn-servicio" data-area="Estética" data-servicio="Sesión Onda Coolwaves">Sesión Onda Coolwaves</button>
+          <button type="button" class="btn-servicio" data-area="Estética" data-servicio="Sesión Emerald">Sesión Emerald</button>
+          <button type="button" class="btn-servicio" id="btn-otros" data-area="Estética">Otros</button>
+        </div>
+      </div>
+
+      <div id="otros-panel" class="hidden narrow">
+        <label>
+          ¿Qué servicio?
+          <input type="text" id="otros-servicio" autocomplete="off" />
+        </label>
+        <div class="form-actions">
+          <button type="button" id="btn-registrar-otros">Registrar</button>
+          <button type="button" id="btn-cancelar-otros" class="secondary">Volver</button>
+        </div>
+      </div>
+
+      <p id="asistencia-message" class="message"></p>
+
+      <div class="form-actions narrow">
+        <button type="button" id="btn-editar" class="secondary">Actualizar mis datos</button>
+        <button type="button" id="btn-cancelar-asistencia" class="secondary">Cancelar</button>
+      </div>
+    </section>
 
     <!-- Estado: completando datos (registro nuevo o edición) -->
     <form id="registro-form" class="hidden" autocomplete="off">
@@ -128,6 +133,16 @@
       <label>
         Edad
         <input type="text" id="edad" name="EDAD" readonly />
+      </label>
+
+      <label>
+        Sexo
+        <select id="sexo" name="SEXO">
+          <option value="">Seleccioná</option>
+          <option value="Femenino">Femenino</option>
+          <option value="Masculino">Masculino</option>
+          <option value="Otro">Otro</option>
+        </select>
       </label>
 
       <label>

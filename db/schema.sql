@@ -33,3 +33,16 @@ CREATE INDEX IF NOT EXISTS idx_asistencias_fecha ON asistencias(fecha);
 ALTER TABLE asistencias DROP CONSTRAINT IF EXISTS asistencias_categoria_check;
 ALTER TABLE asistencias ADD CONSTRAINT asistencias_categoria_check
   CHECK (categoria IN ('Asistencia Estética', 'Asistencia Pilates', 'Clase de prueba', 'Consulta Medica'));
+
+-- Área/Servicio reemplaza el "categoria" plano de 4 valores. categoria queda
+-- en la tabla solo por compatibilidad histórica; las filas nuevas no la usan.
+ALTER TABLE asistencias ALTER COLUMN categoria DROP NOT NULL;
+ALTER TABLE asistencias DROP CONSTRAINT IF EXISTS asistencias_categoria_check;
+ALTER TABLE asistencias ADD COLUMN IF NOT EXISTS area TEXT;
+ALTER TABLE asistencias ADD COLUMN IF NOT EXISTS servicio TEXT;
+ALTER TABLE asistencias DROP CONSTRAINT IF EXISTS asistencias_area_check;
+ALTER TABLE asistencias ADD CONSTRAINT asistencias_area_check
+  CHECK (area IS NULL OR area IN ('Pilates', 'Estética'));
+
+-- Sexo del cliente.
+ALTER TABLE clientes ADD COLUMN IF NOT EXISTS sexo TEXT;

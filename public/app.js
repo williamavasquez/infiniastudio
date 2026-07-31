@@ -2,24 +2,19 @@ const documentoInput = document.getElementById('documento');
 const btnBuscar = document.getElementById('btn-buscar');
 const dniStatus = document.getElementById('dni-status');
 
-const vistaEncontrado = document.getElementById('vista-encontrado');
+const vistaServicio = document.getElementById('vista-servicio');
 const btnEditar = document.getElementById('btn-editar');
-const btnAsistencia = document.getElementById('btn-asistencia');
 const mensajeBienvenida = document.getElementById('mensaje-bienvenida');
+const serviciosGrid = document.getElementById('servicios-grid');
+const otrosPanel = document.getElementById('otros-panel');
+const otrosServicioInput = document.getElementById('otros-servicio');
+const btnRegistrarOtros = document.getElementById('btn-registrar-otros');
+const btnCancelarOtros = document.getElementById('btn-cancelar-otros');
+const btnCancelarAsistencia = document.getElementById('btn-cancelar-asistencia');
+const asistenciaMessage = document.getElementById('asistencia-message');
 
 const vistaNoEncontrado = document.getElementById('vista-no-encontrado');
 const btnRegistrarme = document.getElementById('btn-registrarme');
-
-const panelAsistencia = document.getElementById('panel-asistencia');
-const categoriaRadios = document.querySelectorAll('input[name="categoria"]');
-
-function getCategoriaSeleccionada() {
-  const checked = document.querySelector('input[name="categoria"]:checked');
-  return checked ? checked.value : '';
-}
-const btnConfirmarAsistencia = document.getElementById('btn-confirmar-asistencia');
-const btnCancelarAsistencia = document.getElementById('btn-cancelar-asistencia');
-const asistenciaMessage = document.getElementById('asistencia-message');
 
 const form = document.getElementById('registro-form');
 const tipoDocInput = document.getElementById('tipo-doc');
@@ -30,6 +25,7 @@ const celularInput = document.getElementById('celular');
 const distritoInput = document.getElementById('distrito');
 const fNacimientoInput = document.getElementById('f-nacimiento');
 const edadInput = document.getElementById('edad');
+const sexoInput = document.getElementById('sexo');
 const correoInput = document.getElementById('correo');
 const direccionInput = document.getElementById('direccion');
 const btnCancelar = document.getElementById('btn-cancelar');
@@ -94,6 +90,7 @@ function limpiarFormulario() {
   distritoInput.value = '';
   fNacimientoInput.value = '';
   edadInput.value = '';
+  sexoInput.value = '';
   correoInput.value = '';
   direccionInput.value = '';
   formMessage.textContent = '';
@@ -101,8 +98,7 @@ function limpiarFormulario() {
 }
 
 function ocultarTodo() {
-  vistaEncontrado.classList.add('hidden');
-  panelAsistencia.classList.add('hidden');
+  vistaServicio.classList.add('hidden');
   vistaNoEncontrado.classList.add('hidden');
   form.classList.add('hidden');
 }
@@ -120,26 +116,25 @@ function mostrarBusquedaInicial() {
   documentoInput.focus();
 }
 
-function mostrarVistaEncontrado(cliente) {
+function ocultarOtrosPanel() {
+  otrosPanel.classList.add('hidden');
+  serviciosGrid.classList.remove('hidden');
+}
+
+function mostrarVistaServicio(cliente) {
   documentoInput.readOnly = false;
-  mensajeBienvenida.textContent = `Bienvenido/a ${cliente.apodo || cliente.paciente}`;
+  mensajeBienvenida.textContent = `¡Hola, ${cliente.apodo || cliente.paciente}! ¿A qué servicio vienes hoy?`;
   ocultarTodo();
-  vistaEncontrado.classList.remove('hidden');
+  vistaServicio.classList.remove('hidden');
+  ocultarOtrosPanel();
+  asistenciaMessage.textContent = '';
+  asistenciaMessage.className = 'message';
 }
 
 function mostrarNoEncontrado() {
   documentoInput.readOnly = false;
   ocultarTodo();
   vistaNoEncontrado.classList.remove('hidden');
-}
-
-function mostrarPanelAsistencia() {
-  documentoInput.readOnly = false;
-  ocultarTodo();
-  panelAsistencia.classList.remove('hidden');
-  categoriaRadios[0].checked = true;
-  asistenciaMessage.textContent = '';
-  asistenciaMessage.className = 'message';
 }
 
 function mostrarFormulario({ editando }) {
@@ -159,6 +154,7 @@ function mostrarFormulario({ editando }) {
     distritoInput.value = clienteActual.distrito || '';
     fNacimientoInput.value = clienteActual.f_nacimiento || '';
     edadInput.value = calcularEdad(clienteActual.f_nacimiento);
+    sexoInput.value = clienteActual.sexo || '';
     correoInput.value = clienteActual.correo || '';
     direccionInput.value = clienteActual.direccion || '';
     formMessage.textContent = '';
@@ -211,9 +207,9 @@ async function buscarDocumento(documento) {
 
     if (data.found) {
       clienteActual = data.cliente;
-      dniStatus.textContent = 'Encontrado';
-      dniStatus.className = 'status found';
-      mostrarVistaEncontrado(clienteActual);
+      dniStatus.textContent = '';
+      dniStatus.className = 'status';
+      mostrarVistaServicio(clienteActual);
     } else {
       clienteActual = null;
       dniStatus.textContent = '';
@@ -238,15 +234,11 @@ btnCancelar.addEventListener('click', () => {
   mostrarBusquedaInicial();
 });
 
-btnAsistencia.addEventListener('click', () => {
-  mostrarPanelAsistencia();
-});
-
 btnCancelarAsistencia.addEventListener('click', () => {
-  mostrarVistaEncontrado(clienteActual);
+  mostrarBusquedaInicial();
 });
 
-btnConfirmarAsistencia.addEventListener('click', async () => {
+async function registrarAsistencia(area, servicio) {
   asistenciaMessage.textContent = '';
   asistenciaMessage.className = 'message';
 
@@ -256,19 +248,49 @@ btnConfirmarAsistencia.addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         NRO_DOC: clienteActual.documento,
-        CATEGORIA: getCategoriaSeleccionada(),
+        AREA: area,
+        SERVICIO: servicio,
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al registrar asistencia');
 
     const a = data.asistencia;
-    mostrarToast(`Asistencia registrada: ${a.turno} — ${a.categoria} a las ${a.hora_atencion}`);
+    mostrarToast(`Asistencia registrada: ${a.servicio} (${a.turno}) a las ${a.hora_atencion}`);
     mostrarBusquedaInicial();
   } catch (err) {
     asistenciaMessage.textContent = err.message;
     asistenciaMessage.className = 'message error';
   }
+}
+
+serviciosGrid.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn-servicio');
+  if (!btn) return;
+
+  if (btn.id === 'btn-otros') {
+    otrosPanel.classList.remove('hidden');
+    serviciosGrid.classList.add('hidden');
+    otrosServicioInput.value = '';
+    otrosServicioInput.focus();
+    return;
+  }
+
+  registrarAsistencia(btn.dataset.area, btn.dataset.servicio);
+});
+
+btnRegistrarOtros.addEventListener('click', () => {
+  const servicio = otrosServicioInput.value.trim();
+  if (!servicio) {
+    asistenciaMessage.textContent = 'Escribí qué servicio es.';
+    asistenciaMessage.className = 'message error';
+    return;
+  }
+  registrarAsistencia('Estética', servicio);
+});
+
+btnCancelarOtros.addEventListener('click', () => {
+  ocultarOtrosPanel();
 });
 
 form.addEventListener('submit', async (e) => {
@@ -293,6 +315,7 @@ form.addEventListener('submit', async (e) => {
     CELULAR: celularInput.value.trim(),
     DISTRITO: distritoInput.value.trim(),
     F_NACIMIENTO: fNacimientoInput.value,
+    SEXO: sexoInput.value,
     CORREO: correoInput.value.trim(),
     DIRECCION: direccionInput.value.trim(),
   };
@@ -308,10 +331,8 @@ form.addEventListener('submit', async (e) => {
     if (!res.ok) throw new Error(data.error || 'Error al guardar');
 
     clienteActual = data.cliente;
-    dniStatus.textContent = 'Encontrado';
-    dniStatus.className = 'status found';
-    mostrarVistaEncontrado(clienteActual);
     mostrarToast(eraActualizacion ? 'Datos actualizados correctamente' : 'Cliente guardado correctamente');
+    mostrarVistaServicio(clienteActual);
   } catch (err) {
     formMessage.textContent = err.message;
     formMessage.className = 'message error';
