@@ -119,15 +119,24 @@ form {
   display: flex;
   align-items: flex-end;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .dni-label {
   flex: 1;
+  min-width: 100%;
 }
 
 .dni-row button {
   margin-top: 0;
   white-space: nowrap;
+  flex: 1;
+}
+
+@media (min-width: 420px) {
+  .dni-label {
+    min-width: 0;
+  }
 }
 
 #vista-servicio {

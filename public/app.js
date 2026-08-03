@@ -1,5 +1,6 @@
 const documentoInput = document.getElementById("documento");
 const btnBuscar = document.getElementById("btn-buscar");
+const btnRegistrarme = document.getElementById("btn-registrarme");
 const dniStatus = document.getElementById("dni-status");
 
 const vistaServicio = document.getElementById("vista-servicio");
@@ -179,6 +180,14 @@ documentoInput.addEventListener("keydown", (e) => {
 btnBuscar.addEventListener("click", () => {
   clearTimeout(lookupTimer);
   buscarDocumento(documentoInput.value.trim());
+});
+
+btnRegistrarme.addEventListener("click", () => {
+  clearTimeout(lookupTimer);
+  clienteActual = null;
+  dniStatus.textContent = "";
+  dniStatus.className = "status";
+  mostrarFormulario({ editando: false });
 });
 
 async function buscarDocumento(documento) {
