@@ -194,6 +194,26 @@ app.get('/api/admin/asistencias/resumen', adminAuth.requireAdminAuth, async (req
   }
 });
 
+app.delete('/api/admin/clientes/:documento', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const ok = await clientesRepo.deleteByDocumento(req.params.documento);
+    if (!ok) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/asistencias/:id', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const ok = await asistenciasRepo.deleteById(req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Asistencia no encontrada' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });

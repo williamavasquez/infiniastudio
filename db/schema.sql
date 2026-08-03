@@ -46,3 +46,9 @@ ALTER TABLE asistencias ADD CONSTRAINT asistencias_area_check
 
 -- Sexo del cliente.
 ALTER TABLE clientes ADD COLUMN IF NOT EXISTS sexo TEXT;
+
+-- Al eliminar un cliente desde el panel admin, sus asistencias se eliminan
+-- en cascada (si no, la FK impediría el borrado).
+ALTER TABLE asistencias DROP CONSTRAINT IF EXISTS asistencias_nro_doc_fkey;
+ALTER TABLE asistencias ADD CONSTRAINT asistencias_nro_doc_fkey
+  FOREIGN KEY (nro_doc) REFERENCES clientes(documento) ON DELETE CASCADE;

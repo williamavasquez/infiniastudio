@@ -35,13 +35,6 @@
         <button type="button" id="btn-buscar">Buscar</button>
       </div>
       <span id="dni-status" class="status"></span>
-
-      <!-- Estado: documento no encontrado (todavía no se muestra el formulario) -->
-      <section id="vista-no-encontrado" class="hidden">
-        <p class="bienvenida">¡Aún no te encontramos!</p>
-        <p class="hint">Parece que es tu primera vez en Infinia. Completa tus datos para registrarte.</p>
-        <button type="button" id="btn-registrarme">Registrarme</button>
-      </section>
     </div>
 
     <!-- Estado: documento encontrado -> elegir servicio -->
@@ -62,19 +55,14 @@
           <button type="button" class="btn-servicio" data-area="Estética" data-servicio="Sesión INDIBA">Sesión INDIBA</button>
           <button type="button" class="btn-servicio" data-area="Estética" data-servicio="Sesión Onda Coolwaves">Sesión Onda Coolwaves</button>
           <button type="button" class="btn-servicio" data-area="Estética" data-servicio="Sesión Emerald">Sesión Emerald</button>
-          <button type="button" class="btn-servicio" id="btn-otros" data-area="Estética">Otros</button>
         </div>
       </div>
 
-      <div id="otros-panel" class="hidden narrow">
+      <div id="otros-panel" class="narrow">
         <label>
-          ¿Qué servicio?
-          <input type="text" id="otros-servicio" autocomplete="off" />
+          Otros
+          <input type="text" id="otros-servicio" autocomplete="off" placeholder="Escribí el servicio y presiona Enter" />
         </label>
-        <div class="form-actions">
-          <button type="button" id="btn-registrar-otros">Registrar</button>
-          <button type="button" id="btn-cancelar-otros" class="secondary">Volver</button>
-        </div>
       </div>
 
       <p id="asistencia-message" class="message"></p>

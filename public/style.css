@@ -130,14 +130,6 @@ form {
   white-space: nowrap;
 }
 
-#vista-no-encontrado {
-  margin-top: 22px;
-}
-
-#vista-no-encontrado .hint {
-  margin-bottom: 18px;
-}
-
 #vista-servicio {
   margin-top: 4px;
 }
@@ -147,6 +139,10 @@ form {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   margin-bottom: 18px;
+}
+
+#otros-panel {
+  margin: 0 auto 18px;
 }
 
 @media (max-width: 560px) {

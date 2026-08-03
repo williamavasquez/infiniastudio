@@ -300,6 +300,28 @@ tbody tr:last-child td {
   border-bottom: none;
 }
 
+.btn-delete-row {
+  background: none;
+  border: none;
+  color: #c0392b;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-delete-row:hover {
+  background: #fbe4e0;
+  color: #a5311f;
+}
+
+.btn-delete-row:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .table-status {
   text-align: center;
   font-size: 0.8rem;

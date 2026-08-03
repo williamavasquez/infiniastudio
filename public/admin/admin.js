@@ -287,10 +287,29 @@ const usuariosConfig = {
       <td>${c.correo || ''}</td>
       <td>${c.direccion || ''}</td>
       <td>${fmtFechaHora(c.fecha_creacion)}</td>
+      <td><button type="button" class="btn-delete-row" data-delete-cliente="${c.documento}" title="Eliminar usuario">✕</button></td>
     `;
     return tr;
   },
 };
+
+document.getElementById('usuarios-body').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-delete-cliente]');
+  if (!btn) return;
+  const documento = btn.dataset.deleteCliente;
+  if (!confirm(`¿Eliminar al usuario con documento ${documento}? Esta acción también eliminará sus asistencias.`)) return;
+
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/admin/clientes/${encodeURIComponent(documento)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+    btn.closest('tr').remove();
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
+});
 
 document.getElementById('btn-export-csv').addEventListener('click', () => {
   const params = new URLSearchParams({
@@ -351,9 +370,28 @@ const checkinsConfig = {
       <td>${a.distrito || ''}</td>
       <td>${a.area || ''}</td>
       <td>${a.servicio || ''}</td>
+      <td><button type="button" class="btn-delete-row" data-delete-asistencia="${a.id}" title="Eliminar asistencia">✕</button></td>
     `;
     return tr;
   },
 };
+
+document.getElementById('checkins-body').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-delete-asistencia]');
+  if (!btn) return;
+  const id = btn.dataset.deleteAsistencia;
+  if (!confirm('¿Eliminar esta asistencia?')) return;
+
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/admin/asistencias/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+    btn.closest('tr').remove();
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
+});
 
 checkSession();
