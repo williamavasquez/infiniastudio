@@ -14,6 +14,52 @@ const tabPanels = {
 
 let distritosCache = [];
 
+// ---------------------------------------------------------------------------
+// Modal (reemplaza confirm()/alert() nativos)
+// ---------------------------------------------------------------------------
+
+const modalOverlay = document.getElementById('modal-overlay');
+const modalBox = modalOverlay.querySelector('.modal-box');
+const modalMessage = document.getElementById('modal-message');
+const modalBtnConfirm = document.getElementById('modal-btn-confirm');
+const modalBtnCancel = document.getElementById('modal-btn-cancel');
+
+let modalResolve = null;
+
+function cerrarModal(resultado) {
+  modalOverlay.classList.add('hidden');
+  if (modalResolve) {
+    modalResolve(resultado);
+    modalResolve = null;
+  }
+}
+
+modalBtnConfirm.addEventListener('click', () => cerrarModal(true));
+modalBtnCancel.addEventListener('click', () => cerrarModal(false));
+modalOverlay.addEventListener('click', (e) => {
+  if (e.target === modalOverlay) cerrarModal(false);
+});
+
+// mostrarConfirm: reemplazo de confirm(mensaje) -> Promise<boolean>
+function mostrarConfirm(mensaje) {
+  modalBox.classList.remove('modal-alert');
+  modalMessage.textContent = mensaje;
+  modalOverlay.classList.remove('hidden');
+  return new Promise((resolve) => {
+    modalResolve = resolve;
+  });
+}
+
+// mostrarAlert: reemplazo de alert(mensaje) -> Promise<void>
+function mostrarAlert(mensaje) {
+  modalBox.classList.add('modal-alert');
+  modalMessage.textContent = mensaje;
+  modalOverlay.classList.remove('hidden');
+  return new Promise((resolve) => {
+    modalResolve = () => resolve();
+  });
+}
+
 function fmtFecha(iso) {
   if (!iso) return '';
   return String(iso).slice(0, 10);
@@ -297,7 +343,8 @@ document.getElementById('usuarios-body').addEventListener('click', async (e) => 
   const btn = e.target.closest('[data-delete-cliente]');
   if (!btn) return;
   const documento = btn.dataset.deleteCliente;
-  if (!confirm(`¿Eliminar al usuario con documento ${documento}? Esta acción también eliminará sus asistencias.`)) return;
+  const confirmado = await mostrarConfirm(`¿Eliminar al usuario con documento ${documento}? Esta acción también eliminará sus asistencias.`);
+  if (!confirmado) return;
 
   btn.disabled = true;
   try {
@@ -306,7 +353,7 @@ document.getElementById('usuarios-body').addEventListener('click', async (e) => 
     if (!res.ok) throw new Error(data.error || 'Error al eliminar');
     btn.closest('tr').remove();
   } catch (err) {
-    alert(err.message);
+    await mostrarAlert(err.message);
     btn.disabled = false;
   }
 });
@@ -380,7 +427,8 @@ document.getElementById('checkins-body').addEventListener('click', async (e) => 
   const btn = e.target.closest('[data-delete-asistencia]');
   if (!btn) return;
   const id = btn.dataset.deleteAsistencia;
-  if (!confirm('¿Eliminar esta asistencia?')) return;
+  const confirmado = await mostrarConfirm('¿Eliminar esta asistencia?');
+  if (!confirmado) return;
 
   btn.disabled = true;
   try {
@@ -389,7 +437,7 @@ document.getElementById('checkins-body').addEventListener('click', async (e) => 
     if (!res.ok) throw new Error(data.error || 'Error al eliminar');
     btn.closest('tr').remove();
   } catch (err) {
-    alert(err.message);
+    await mostrarAlert(err.message);
     btn.disabled = false;
   }
 });
