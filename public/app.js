@@ -263,6 +263,12 @@ form.addEventListener("submit", async (e) => {
     return;
   }
 
+  if (!DocumentoValidation.validarFormatoDocumento(tipoDocInput.value, documento)) {
+    formMessage.textContent = `El documento no tiene un formato válido para ${tipoDocInput.value}.`;
+    formMessage.className = "message error";
+    return;
+  }
+
   const payload = {
     DOCUMENTO: documento,
     TIPO_DOC: tipoDocInput.value,

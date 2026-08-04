@@ -9,6 +9,7 @@ const { toCsv } = require('./lib/csv');
 const distritos = require('./lib/distritos.json');
 const { resolveRange } = require('./lib/dateRanges');
 const { peruNow } = require('./lib/peruTime');
+const { validarFormatoDocumento } = require('./public/documentoValidation');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,6 +45,9 @@ app.post('/api/clientes', async (req, res) => {
   }
   if (!input.PACIENTE || !String(input.PACIENTE).trim()) {
     return res.status(400).json({ error: 'PACIENTE es requerido' });
+  }
+  if (!validarFormatoDocumento(input.TIPO_DOC, input.DOCUMENTO)) {
+    return res.status(400).json({ error: `DOCUMENTO no tiene un formato válido para ${input.TIPO_DOC}` });
   }
   if (input.CORREO && !EMAIL_RE.test(String(input.CORREO).trim())) {
     return res.status(400).json({ error: 'CORREO no es un email válido' });
