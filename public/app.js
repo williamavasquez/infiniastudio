@@ -15,6 +15,7 @@ const asistenciaMessage = document.getElementById("asistencia-message");
 
 const form = document.getElementById("registro-form");
 const tipoDocInput = document.getElementById("tipo-doc");
+const documentoFormInput = document.getElementById("documento-form");
 const pacienteInput = document.getElementById("paciente");
 const apodoInput = document.getElementById("apodo");
 const celularInput = document.getElementById("celular");
@@ -61,6 +62,7 @@ function mostrarToast(mensaje) {
 
 function limpiarFormulario() {
   tipoDocInput.value = "DNI";
+  documentoFormInput.value = "";
   pacienteInput.value = "";
   apodoInput.value = "";
   celularInput.value = "";
@@ -84,7 +86,6 @@ function mostrarBusquedaInicial() {
   clienteActual = null;
   ocultarTodo();
   limpiarFormulario();
-  documentoInput.readOnly = false;
   documentoInput.value = "";
   dniStatus.textContent = "";
   dniStatus.className = "status";
@@ -92,7 +93,6 @@ function mostrarBusquedaInicial() {
 }
 
 function mostrarVistaServicio(cliente) {
-  documentoInput.readOnly = false;
   mensajeBienvenida.textContent = `¡Hola ${cliente.apodo || cliente.paciente}! ¿A qué servicio vienes hoy?`;
   ocultarTodo();
   vistaServicio.classList.remove("hidden");
@@ -106,10 +106,12 @@ function mostrarFormulario({ editando }) {
   form.classList.remove("hidden");
   btnCancelar.classList.toggle("hidden", !editando);
   // El documento es la clave del registro — no se debe poder cambiar al
-  // actualizar uno ya existente. Sí se puede corregir al crear uno nuevo.
-  documentoInput.readOnly = editando;
+  // actualizar uno ya existente. Sí se puede corregir al crear uno nuevo
+  // (por ejemplo si tipeó mal el número al buscarlo).
+  documentoFormInput.readOnly = editando;
 
   if (editando && clienteActual) {
+    documentoFormInput.value = clienteActual.documento || documentoInput.value.trim();
     tipoDocInput.value = clienteActual.tipo_doc || "DNI";
     pacienteInput.value = clienteActual.paciente || "";
     apodoInput.value = clienteActual.apodo || "";
@@ -123,6 +125,10 @@ function mostrarFormulario({ editando }) {
     formMessage.className = "message";
   } else {
     limpiarFormulario();
+    // Copiamos lo que la persona ya escribió en el buscador, para que no
+    // tenga que volver a tipear el documento — pero queda editable por si
+    // se equivocó al buscarlo.
+    documentoFormInput.value = documentoInput.value.trim();
   }
 }
 
@@ -256,7 +262,7 @@ form.addEventListener("submit", async (e) => {
   formMessage.className = "message";
 
   const eraActualizacion = Boolean(clienteActual);
-  const documento = documentoInput.value.trim();
+  const documento = documentoFormInput.value.trim();
   if (!documento) {
     formMessage.textContent = "Ingresá un documento.";
     formMessage.className = "message error";
