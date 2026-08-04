@@ -20,7 +20,6 @@ const apodoInput = document.getElementById("apodo");
 const celularInput = document.getElementById("celular");
 const distritoInput = document.getElementById("distrito");
 const fNacimientoInput = document.getElementById("f-nacimiento");
-const edadInput = document.getElementById("edad");
 const sexoInput = document.getElementById("sexo");
 const correoInput = document.getElementById("correo");
 const direccionInput = document.getElementById("direccion");
@@ -60,24 +59,6 @@ function mostrarToast(mensaje) {
   }, 3000);
 }
 
-function calcularEdad(fNacimientoISO) {
-  if (!fNacimientoISO) return "";
-  const nacimiento = new Date(`${fNacimientoISO}T00:00:00Z`);
-  if (Number.isNaN(nacimiento.getTime())) return "";
-  const hoy = new Date();
-  let edad = hoy.getUTCFullYear() - nacimiento.getUTCFullYear();
-  const aunNoCumplio =
-    hoy.getUTCMonth() < nacimiento.getUTCMonth() ||
-    (hoy.getUTCMonth() === nacimiento.getUTCMonth() &&
-      hoy.getUTCDate() < nacimiento.getUTCDate());
-  if (aunNoCumplio) edad -= 1;
-  return `${Math.max(edad, 0)} años`;
-}
-
-fNacimientoInput.addEventListener("input", () => {
-  edadInput.value = calcularEdad(fNacimientoInput.value);
-});
-
 function limpiarFormulario() {
   tipoDocInput.value = "DNI";
   pacienteInput.value = "";
@@ -85,7 +66,6 @@ function limpiarFormulario() {
   celularInput.value = "";
   distritoInput.value = "";
   fNacimientoInput.value = "";
-  edadInput.value = "";
   sexoInput.value = "";
   correoInput.value = "";
   direccionInput.value = "";
@@ -136,7 +116,6 @@ function mostrarFormulario({ editando }) {
     celularInput.value = clienteActual.celular || "";
     distritoInput.value = clienteActual.distrito || "";
     fNacimientoInput.value = clienteActual.f_nacimiento || "";
-    edadInput.value = calcularEdad(clienteActual.f_nacimiento);
     sexoInput.value = clienteActual.sexo || "";
     correoInput.value = clienteActual.correo || "";
     direccionInput.value = clienteActual.direccion || "";
