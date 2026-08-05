@@ -6,7 +6,9 @@ const dniStatus = document.getElementById("dni-status");
 const vistaServicio = document.getElementById("vista-servicio");
 const btnEditar = document.getElementById("btn-editar");
 const mensajeBienvenida = document.getElementById("mensaje-bienvenida");
+const areaBloqueadaHint = document.getElementById("area-bloqueada-hint");
 const serviciosGrid = document.getElementById("servicios-grid");
+const otrosPanel = document.getElementById("otros-panel");
 const otrosServicioInput = document.getElementById("otros-servicio");
 const btnCancelarAsistencia = document.getElementById(
   "btn-cancelar-asistencia",
@@ -92,6 +94,38 @@ function mostrarBusquedaInicial() {
   documentoInput.focus();
 }
 
+// Deshabilita un bloque de área completo (todos sus botones/input), para
+// evitar repetir la misma área el mismo día. Se vuelve a habilitar solo.
+function bloquearBloqueDeArea(el, bloqueado) {
+  el.classList.toggle("bloqueado", bloqueado);
+  el.querySelectorAll("button, input").forEach((campo) => {
+    campo.disabled = bloqueado;
+  });
+}
+
+async function actualizarAreasBloqueadas(documento) {
+  let areasHoy = [];
+  try {
+    const res = await fetch(`/api/asistencias-hoy/${encodeURIComponent(documento)}`);
+    const data = await res.json();
+    areasHoy = data.areas || [];
+  } catch (err) {
+    // Si falla, dejamos todo habilitado en vez de bloquear por error de red.
+  }
+
+  document.querySelectorAll("[data-area-bloque]").forEach((el) => {
+    bloquearBloqueDeArea(el, areasHoy.includes(el.dataset.areaBloque));
+  });
+
+  if (areasHoy.length) {
+    areaBloqueadaHint.textContent = `Ya te registraste hoy en: ${areasHoy.join(", ")}. Podés volver a registrarte mañana.`;
+    areaBloqueadaHint.classList.remove("hidden");
+  } else {
+    areaBloqueadaHint.textContent = "";
+    areaBloqueadaHint.classList.add("hidden");
+  }
+}
+
 function mostrarVistaServicio(cliente) {
   mensajeBienvenida.textContent = `¡Hola ${cliente.apodo || cliente.paciente}! ¿A qué servicio vienes hoy?`;
   ocultarTodo();
@@ -99,6 +133,7 @@ function mostrarVistaServicio(cliente) {
   otrosServicioInput.value = "";
   asistenciaMessage.textContent = "";
   asistenciaMessage.className = "message";
+  actualizarAreasBloqueadas(cliente.documento);
 }
 
 function mostrarFormulario({ editando }) {

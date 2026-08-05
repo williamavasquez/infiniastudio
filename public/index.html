@@ -42,15 +42,17 @@
     <section id="vista-servicio" class="hidden">
       <p id="mensaje-bienvenida" class="bienvenida"></p>
 
+      <p id="area-bloqueada-hint" class="hint hidden"></p>
+
       <div id="servicios-grid" class="servicios-grid">
-        <div class="servicio-bloque">
+        <div class="servicio-bloque" data-area-bloque="Pilates">
           <h3>Pilates</h3>
           <button type="button" class="btn-servicio" data-area="Pilates" data-servicio="Clase Grupal">Clase Grupal</button>
           <button type="button" class="btn-servicio" data-area="Pilates" data-servicio="Clase Personalizada">Clase Personalizada</button>
           <button type="button" class="btn-servicio" data-area="Pilates" data-servicio="Clase Teens">Clase Teens</button>
           <button type="button" class="btn-servicio" data-area="Pilates" data-servicio="Clase Senior">Clase Senior</button>
         </div>
-        <div class="servicio-bloque">
+        <div class="servicio-bloque" data-area-bloque="Estética">
           <h3>Estética</h3>
           <button type="button" class="btn-servicio" data-area="Estética" data-servicio="Consulta Estética">Consulta Estética</button>
           <button type="button" class="btn-servicio" data-area="Estética" data-servicio="Sesión INDIBA">Sesión INDIBA</button>
@@ -59,7 +61,7 @@
         </div>
       </div>
 
-      <div id="otros-panel" class="narrow">
+      <div id="otros-panel" class="narrow" data-area-bloque="Estética">
         <label>
           Otros
           <input type="text" id="otros-servicio" autocomplete="off" placeholder="Escribí el servicio y presiona Enter" />

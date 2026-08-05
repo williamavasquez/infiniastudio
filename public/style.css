@@ -193,6 +193,21 @@ form {
   background: var(--brand-beige);
 }
 
+.servicio-bloque.bloqueado,
+#otros-panel.bloqueado {
+  opacity: 0.5;
+}
+
+.servicio-bloque.bloqueado .btn-servicio,
+#otros-panel.bloqueado input {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.servicio-bloque.bloqueado .btn-servicio:hover {
+  background: var(--brand-cream);
+}
+
 select {
   font-family: var(--font-sans);
   font-size: 1rem;

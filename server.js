@@ -36,6 +36,18 @@ app.get('/api/lookup/:documento', async (req, res) => {
   }
 });
 
+// GET /api/asistencias-hoy/:documento -> { areas: ["Pilates", ...] } — áreas
+// ya asistidas hoy (hora Perú) por este documento, para deshabilitarlas en
+// el selector de servicios.
+app.get('/api/asistencias-hoy/:documento', async (req, res) => {
+  try {
+    const areas = await asistenciasRepo.getAreasHoy(req.params.documento);
+    res.json({ areas });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/clientes -> crea o actualiza (por DOCUMENTO)
 app.post('/api/clientes', async (req, res) => {
   const input = req.body || {};
