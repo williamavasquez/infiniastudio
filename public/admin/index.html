@@ -69,14 +69,16 @@
           <option value="mes_anterior">Mes anterior</option>
           <option value="rango">Rango de fechas...</option>
         </select>
-        <label class="filter-date hidden" id="dashboard-desde-wrap">
-          Desde
-          <input type="date" id="dashboard-desde" />
-        </label>
-        <label class="filter-date hidden" id="dashboard-hasta-wrap">
-          Hasta
-          <input type="date" id="dashboard-hasta" />
-        </label>
+        <div class="filter-date-group">
+          <label class="filter-date hidden" id="dashboard-desde-wrap">
+            Desde
+            <input type="date" id="dashboard-desde" />
+          </label>
+          <label class="filter-date hidden" id="dashboard-hasta-wrap">
+            Hasta
+            <input type="date" id="dashboard-hasta" />
+          </label>
+        </div>
       </div>
 
       <div class="stat-cards">
@@ -136,14 +138,16 @@
           <option value="Estética">Estética</option>
         </select>
         <input type="text" id="usuarios-servicio" placeholder="Servicio..." class="search-input" />
-        <label class="filter-date">
-          Desde
-          <input type="date" id="usuarios-desde" />
-        </label>
-        <label class="filter-date">
-          Hasta
-          <input type="date" id="usuarios-hasta" />
-        </label>
+        <div class="filter-date-group">
+          <label class="filter-date">
+            Desde
+            <input type="date" id="usuarios-desde" />
+          </label>
+          <label class="filter-date">
+            Hasta
+            <input type="date" id="usuarios-hasta" />
+          </label>
+        </div>
         <button type="button" id="btn-export-csv" class="secondary">Exportar CSV</button>
       </div>
 
@@ -184,8 +188,12 @@
           <span class="stat-value" id="checkins-stat-asistencias">—</span>
         </div>
         <div class="stat-card">
-          <span class="stat-label">Servicios realizados</span>
-          <span class="stat-value" id="checkins-stat-servicios">—</span>
+          <span class="stat-label">Pilates</span>
+          <span class="stat-value" id="checkins-stat-pilates">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Estética</span>
+          <span class="stat-value" id="checkins-stat-estetica">—</span>
         </div>
       </div>
       <div class="filter-bar">
@@ -199,14 +207,16 @@
           <option value="Estética">Estética</option>
         </select>
         <input type="text" id="checkins-servicio" placeholder="Servicio..." class="search-input" />
-        <label class="filter-date">
-          Desde
-          <input type="date" id="checkins-desde" />
-        </label>
-        <label class="filter-date">
-          Hasta
-          <input type="date" id="checkins-hasta" />
-        </label>
+        <div class="filter-date-group">
+          <label class="filter-date">
+            Desde
+            <input type="date" id="checkins-desde" />
+          </label>
+          <label class="filter-date">
+            Hasta
+            <input type="date" id="checkins-hasta" />
+          </label>
+        </div>
       </div>
 
       <div class="table-wrap" id="checkins-scroll">

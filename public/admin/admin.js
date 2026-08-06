@@ -388,7 +388,8 @@ async function cargarResumenAsistencias(filtros) {
     const data = await res.json();
     document.getElementById('checkins-stat-clientes').textContent = data.clientesUnicos;
     document.getElementById('checkins-stat-asistencias').textContent = data.asistencias;
-    document.getElementById('checkins-stat-servicios').textContent = data.serviciosRealizados;
+    document.getElementById('checkins-stat-pilates').textContent = data.pilates;
+    document.getElementById('checkins-stat-estetica').textContent = data.estetica;
   } catch (err) {
     // Los números de resumen quedan en su último valor si falla.
   }

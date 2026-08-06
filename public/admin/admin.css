@@ -265,6 +265,11 @@ button.secondary:hover {
   color: var(--brand-black);
 }
 
+.filter-date-group {
+  display: flex;
+  gap: 10px;
+}
+
 .table-wrap {
   background: #fff;
   border: 1px solid var(--brand-beige);
