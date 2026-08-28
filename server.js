@@ -5,6 +5,9 @@ const clientesRepo = require('./lib/clientesRepo');
 const asistenciasRepo = require('./lib/asistenciasRepo');
 const adminRepo = require('./lib/adminRepo');
 const productosRepo = require('./lib/productosRepo');
+const cotizacionesRepo = require('./lib/cotizacionesRepo');
+const { generarCotizacionPdf, nombreArchivo } = require('./lib/cotizacionPdf');
+const mailer = require('./lib/mailer');
 const adminAuth = require('./lib/adminAuth');
 const { toCsv } = require('./lib/csv');
 const distritos = require('./lib/distritos.json');
@@ -328,6 +331,151 @@ app.delete('/api/admin/productos/:sku', adminAuth.requireAdminAuth, async (req, 
   }
 });
 
+// ---------------------------------------------------------------------------
+// Cotizaciones
+// ---------------------------------------------------------------------------
+
+function parseCotizacionesParams(req) {
+  const { q, estado, semaforo, documento, desde, hasta, offset } = req.query;
+  return {
+    q: q || null,
+    estado: estado || null,
+    semaforo: semaforo || null,
+    documento: documento || null,
+    desde: desde || null,
+    hasta: hasta || null,
+    offset: Number(offset) || 0,
+    limit: 100,
+  };
+}
+
+app.get('/api/admin/cotizaciones', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    res.json(await cotizacionesRepo.listCotizaciones(parseCotizacionesParams(req)));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/cotizaciones/resumen', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const { semaforo, ...resto } = parseCotizacionesParams(req);
+    res.json(await cotizacionesRepo.getResumen(resto));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Indica si el botón de "Enviar por correo" puede funcionar, para que la UI
+// lo deshabilite con un motivo claro en vez de fallar al hacer clic.
+app.get('/api/admin/cotizaciones/config', adminAuth.requireAdminAuth, (req, res) => {
+  res.json({ mailConfigurado: mailer.mailConfigurado(), remitente: mailer.mailConfigurado() ? mailer.remitente() : null });
+});
+
+app.get('/api/admin/cotizaciones/:id', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const cotizacion = await cotizacionesRepo.getCotizacion(req.params.id);
+    if (!cotizacion) return res.status(404).json({ error: 'Cotización no encontrada' });
+    res.json(cotizacion);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/cotizaciones', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    res.json({ ok: true, cotizacion: await cotizacionesRepo.createCotizacion(req.body || {}) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/cotizaciones/:id', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const cotizacion = await cotizacionesRepo.updateCotizacion(req.params.id, req.body || {});
+    if (!cotizacion) return res.status(404).json({ error: 'Cotización no encontrada' });
+    res.json({ ok: true, cotizacion });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/cotizaciones/:id/estado', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const cotizacion = await cotizacionesRepo.setEstado(req.params.id, (req.body || {}).estado);
+    if (!cotizacion) return res.status(404).json({ error: 'Cotización no encontrada' });
+    res.json({ ok: true, cotizacion });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/cotizaciones/:id/notas', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const cotizacion = await cotizacionesRepo.addNota(req.params.id, (req.body || {}).texto);
+    if (!cotizacion) return res.status(404).json({ error: 'Cotización no encontrada' });
+    res.json({ ok: true, cotizacion });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/cotizaciones/:id', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const ok = await cotizacionesRepo.deleteCotizacion(req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Cotización no encontrada' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ?descargar=1 fuerza la descarga; sin eso se abre en el visor del navegador,
+// que es desde donde se imprime.
+app.get('/api/admin/cotizaciones/:id/pdf', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const cotizacion = await cotizacionesRepo.getCotizacion(req.params.id);
+    if (!cotizacion) return res.status(404).json({ error: 'Cotización no encontrada' });
+
+    const pdf = await generarCotizacionPdf(cotizacion);
+    const disposition = req.query.descargar ? 'attachment' : 'inline';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `${disposition}; filename="${nombreArchivo(cotizacion)}"`);
+    res.send(pdf);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/cotizaciones/:id/email', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const cotizacion = await cotizacionesRepo.getCotizacion(req.params.id);
+    if (!cotizacion) return res.status(404).json({ error: 'Cotización no encontrada' });
+
+    const destinatario = String((req.body || {}).destinatario || cotizacion.correo || '').trim();
+    if (!destinatario) return res.status(400).json({ error: 'El cliente no tiene correo cargado. Escribí uno para enviar.' });
+    if (!EMAIL_RE.test(destinatario)) return res.status(400).json({ error: 'El correo del destinatario no es válido' });
+
+    const pdf = await generarCotizacionPdf(cotizacion);
+    const saludo = cotizacion.apodo || (cotizacion.paciente || '').split(' ')[0] || '';
+    const cuerpo = String((req.body || {}).mensaje || '').trim();
+    const texto = cuerpo || `Hola ${saludo},\n\nTe compartimos la cotización ${cotizacion.numero} que preparamos para vos.\n\n¡Gracias por elegir Infinia!`;
+
+    await mailer.enviarCorreo({
+      to: destinatario,
+      subject: `Cotización ${cotizacion.numero} — Infinia`,
+      text: texto,
+      html: `<p>${texto.replace(/\n/g, '<br />')}</p>`,
+      attachments: [{ filename: nombreArchivo(cotizacion), content: pdf, contentType: 'application/pdf' }],
+    });
+
+    await cotizacionesRepo.registrarEnvio(cotizacion.id, destinatario);
+    res.json({ ok: true, destinatario, cotizacion: await cotizacionesRepo.getCotizacion(cotizacion.id) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.delete('/api/admin/clientes/:documento', adminAuth.requireAdminAuth, async (req, res) => {
   try {
     const ok = await clientesRepo.deleteByDocumento(req.params.documento);
@@ -352,7 +500,7 @@ app.delete('/api/admin/asistencias/:id', adminAuth.requireAdminAuth, async (req,
 // ...). Todas sirven el mismo SPA; el front lee el path para abrir la pestaña.
 // Los assets (/admin/admin.js, /admin/admin.css) ya los resuelve express.static
 // antes de llegar acá.
-const ADMIN_TABS = ['dashboard', 'usuarios', 'asistencias', 'productos'];
+const ADMIN_TABS = ['dashboard', 'usuarios', 'asistencias', 'productos', 'cotizaciones'];
 
 app.get('/admin/:tab', (req, res, next) => {
   if (!ADMIN_TABS.includes(req.params.tab)) return next();

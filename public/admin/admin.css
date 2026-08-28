@@ -568,3 +568,292 @@ tbody tr:last-child td {
 .campo-nuevo {
   margin-top: 6px;
 }
+
+/* ---------------------------------------------------------------------------
+   Cotizaciones
+   --------------------------------------------------------------------------- */
+
+/* El semáforo es información interna del panel: nunca sale en el PDF. */
+.semaforo {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.semaforo-caliente {
+  background: #d9f5de;
+  color: #2f6b3f;
+}
+
+.semaforo-tibio {
+  background: #fdf0cd;
+  color: #8a6a12;
+}
+
+.semaforo-frio {
+  background: #fbe0da;
+  color: #b23c22;
+}
+
+.semaforo-vencida {
+  background: #ececec;
+  color: #6f6f6f;
+}
+
+.semaforo-aceptada {
+  background: #dce9fb;
+  color: #2b5a97;
+}
+
+.semaforo-rechazada {
+  background: #d8d5d2;
+  color: #4a4644;
+}
+
+tbody tr.fila-clickeable {
+  cursor: pointer;
+}
+
+tbody tr.fila-clickeable:hover {
+  background: var(--brand-cream);
+}
+
+.cell-numero {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Modales anchos (cotización) */
+
+.modal-box.modal-ancho {
+  max-width: 860px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.modal-encabezado h2 {
+  margin: 0;
+}
+
+.bloque {
+  border: 1px solid var(--brand-beige);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.bloque-titulo {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 10px;
+}
+
+.ayuda {
+  font-weight: 400;
+  font-size: 0.72rem;
+  opacity: 0.6;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.campo-bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+textarea {
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  padding: 9px 11px;
+  border: 1px solid var(--brand-beige);
+  border-radius: 8px;
+  outline: none;
+  color: var(--brand-black);
+  background: #fff;
+  resize: vertical;
+}
+
+textarea:focus {
+  border-color: var(--brand-orange);
+  box-shadow: 0 0 0 3px rgba(240, 122, 74, 0.18);
+}
+
+/* Buscadores con resultados desplegables (cliente y productos) */
+
+.cliente-picker,
+.item-picker {
+  display: flex;
+  gap: 10px;
+}
+
+.item-picker select {
+  min-width: 190px;
+}
+
+.resultados {
+  border: 1px solid var(--brand-beige);
+  border-radius: 8px;
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #fff;
+}
+
+.resultado-item {
+  padding: 9px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  border-bottom: 1px solid #f1ede6;
+}
+
+.resultado-item:last-child {
+  border-bottom: none;
+}
+
+.resultado-item:hover {
+  background: var(--brand-cream);
+}
+
+.resultado-meta {
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.resultado-vacio {
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  opacity: 0.6;
+}
+
+.cliente-elegido {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--brand-cream);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.cliente-meta {
+  font-size: 0.78rem;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+/* Tabla de ítems dentro del modal */
+
+.tabla-items {
+  max-height: 260px;
+  margin-top: 12px;
+}
+
+.input-cantidad {
+  width: 64px;
+  padding: 5px 7px;
+  text-align: right;
+}
+
+.input-precio {
+  width: 96px;
+  padding: 5px 7px;
+  text-align: right;
+}
+
+.total-linea {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 12px;
+  font-size: 0.9rem;
+}
+
+.total-linea strong {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+
+/* Notas internas */
+
+.nota-nueva {
+  display: flex;
+  gap: 10px;
+}
+
+.nota-nueva input {
+  flex: 1;
+}
+
+.notas-lista {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.notas-lista li {
+  border-left: 2px solid var(--brand-beige);
+  padding: 2px 0 10px 12px;
+  margin-bottom: 4px;
+}
+
+.nota-fecha {
+  display: block;
+  font-size: 0.72rem;
+  opacity: 0.55;
+  margin-bottom: 2px;
+}
+
+.nota-texto {
+  font-size: 0.87rem;
+  white-space: pre-wrap;
+}
+
+/* Acciones del modal: documento a la izquierda, guardar/cerrar a la derecha */
+
+.modal-actions-split {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.acciones-doc,
+.acciones-principales {
+  display: flex;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .cliente-picker,
+  .item-picker,
+  .nota-nueva {
+    flex-direction: column;
+  }
+
+  .modal-actions-split {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}

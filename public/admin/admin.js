@@ -11,6 +11,7 @@ const tabPanels = {
   usuarios: document.getElementById('tab-usuarios'),
   checkins: document.getElementById('tab-checkins'),
   productos: document.getElementById('tab-productos'),
+  cotizaciones: document.getElementById('tab-cotizaciones'),
 };
 
 // Cada pestaña tiene su propia URL (/admin/usuarios, /admin/productos, ...)
@@ -20,6 +21,7 @@ const TAB_SLUGS = {
   usuarios: 'usuarios',
   checkins: 'asistencias',
   productos: 'productos',
+  cotizaciones: 'cotizaciones',
 };
 const SLUG_TABS = Object.fromEntries(Object.entries(TAB_SLUGS).map(([tab, slug]) => [slug, tab]));
 
@@ -81,6 +83,21 @@ function esc(v) {
 function fmtPrecio(v) {
   if (v === null || v === undefined || v === '') return null;
   return Number(v).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtMoneda(v) {
+  return `S/ ${Number(v || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// "hace 3 días" — el semáforo se explica solo si se ve la antigüedad al lado.
+function fmtHace(iso) {
+  if (!iso) return '';
+  const dias = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (dias <= 0) return 'hoy';
+  if (dias === 1) return 'ayer';
+  if (dias < 30) return `hace ${dias} días`;
+  const meses = Math.floor(dias / 30);
+  return meses === 1 ? 'hace 1 mes' : `hace ${meses} meses`;
 }
 
 function fmtFecha(iso) {
@@ -197,6 +214,7 @@ async function initPanel() {
   configurarTabla(usuariosConfig);
   configurarTabla(checkinsConfig);
   configurarProductos();
+  configurarCotizaciones();
 }
 
 function llenarSelect(select, valores) {
@@ -1007,4 +1025,661 @@ document.getElementById('btn-export-productos').addEventListener('click', () => 
   window.location.href = `/api/admin/productos/export?${paramsProductos()}`;
 });
 
+// ---------------------------------------------------------------------------
+// Cotizaciones
+// ---------------------------------------------------------------------------
+
+const SEMAFORO_LABEL = {
+  caliente: 'Caliente',
+  tibio: 'Tibio',
+  frio: 'Frío',
+  vencida: 'Vencida',
+  aceptada: 'Aceptada',
+  rechazada: 'Rechazada',
+};
+
+const cotQ = document.getElementById('cot-q');
+const cotSemaforo = document.getElementById('cot-semaforo');
+const cotDesde = document.getElementById('cot-desde');
+const cotHasta = document.getElementById('cot-hasta');
+const cotBody = document.getElementById('cot-body');
+const cotStatus = document.getElementById('cot-status');
+const cotScroll = document.getElementById('cot-scroll');
+
+const cotizacionModal = document.getElementById('cotizacion-modal');
+const cotizacionForm = document.getElementById('cotizacion-form');
+const cotizacionFormMessage = document.getElementById('cotizacion-form-message');
+const cotizacionGuardar = document.getElementById('cotizacion-guardar');
+
+const cotState = { offset: 0, hasMore: true, loading: false };
+// Cotización abierta en el modal (null = alta nueva).
+let cotizacionActual = null;
+// Cliente elegido y líneas en edición.
+let clienteElegido = null;
+let itemsEdicion = [];
+let mailConfigurado = false;
+
+function filtrosCotizaciones() {
+  return {
+    q: cotQ.value.trim(),
+    semaforo: cotSemaforo.value,
+    desde: cotDesde.value,
+    hasta: cotHasta.value,
+  };
+}
+
+function paramsCotizaciones(extra = {}) {
+  const params = new URLSearchParams({ ...filtrosCotizaciones(), ...extra });
+  [...params.keys()].forEach((k) => {
+    if (!params.get(k)) params.delete(k);
+  });
+  return params;
+}
+
+function pillSemaforo(semaforo) {
+  return `<span class="semaforo semaforo-${semaforo}">${SEMAFORO_LABEL[semaforo] || semaforo}</span>`;
+}
+
+function renderCotizacionRow(c) {
+  const tr = document.createElement('tr');
+  tr.className = 'fila-clickeable';
+  tr.dataset.id = c.id;
+  tr.innerHTML = `
+    <td class="cell-numero">${esc(c.numero)}</td>
+    <td>${esc(c.paciente)}<div class="resultado-meta">${esc(c.documento)}</div></td>
+    <td>${esc(c.titulo) || ''}</td>
+    <td class="cell-precio">${fmtMoneda(c.total)}</td>
+    <td>${fmtFecha(c.created_at)}</td>
+    <td>${fmtHace(c.updated_at)}</td>
+    <td>${pillSemaforo(c.semaforo)}</td>
+    <td><button type="button" class="btn-delete-row" data-delete-cot="${c.id}" title="Eliminar cotización">✕</button></td>
+  `;
+  return tr;
+}
+
+async function cargarCotizaciones({ reset }) {
+  if (cotState.loading) return;
+  if (reset) {
+    cotState.offset = 0;
+    cotState.hasMore = true;
+    cotBody.innerHTML = '';
+    cargarResumenCotizaciones();
+  }
+  if (!cotState.hasMore) return;
+
+  cotState.loading = true;
+  cotStatus.textContent = 'Cargando...';
+
+  try {
+    const res = await fetch(`/api/admin/cotizaciones?${paramsCotizaciones({ offset: String(cotState.offset) })}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cargar');
+
+    data.rows.forEach((c) => cotBody.appendChild(renderCotizacionRow(c)));
+    cotState.hasMore = data.hasMore;
+    cotState.offset += data.rows.length;
+    cotStatus.textContent = cotState.hasMore ? '' : 'No hay más resultados.';
+    if (cotState.offset === 0) cotStatus.textContent = 'Sin cotizaciones.';
+  } catch (err) {
+    cotStatus.textContent = 'Error al cargar.';
+  } finally {
+    cotState.loading = false;
+  }
+}
+
+async function cargarResumenCotizaciones() {
+  try {
+    const res = await fetch(`/api/admin/cotizaciones/resumen?${paramsCotizaciones()}`);
+    const data = await res.json();
+    if (!res.ok) return;
+    document.getElementById('cot-stat-total').textContent = data.total;
+    document.getElementById('cot-stat-caliente').textContent = data.porSemaforo.caliente;
+    document.getElementById('cot-stat-seguimiento').textContent = data.porSemaforo.tibio + data.porSemaforo.frio;
+    document.getElementById('cot-stat-monto').textContent = fmtMoneda(data.montoAceptado);
+  } catch (err) {
+    // Las stat cards quedan con su último valor.
+  }
+}
+
+function configurarCotizaciones() {
+  const recargar = debounce(() => cargarCotizaciones({ reset: true }), 400);
+  cotQ.addEventListener('input', recargar);
+  [cotSemaforo, cotDesde, cotHasta].forEach((el) => el.addEventListener('change', () => cargarCotizaciones({ reset: true })));
+
+  cotScroll.addEventListener('scroll', () => {
+    if (cotScroll.scrollTop + cotScroll.clientHeight >= cotScroll.scrollHeight - 80) {
+      cargarCotizaciones({ reset: false });
+    }
+  });
+
+  // productosPorSku alimenta el buscador de ítems del modal, así que el
+  // catálogo tiene que estar cargado antes de abrir cualquier cotización.
+  cargarSelectPadres();
+
+  fetch('/api/admin/cotizaciones/config')
+    .then((r) => r.json())
+    .then((cfg) => {
+      mailConfigurado = Boolean(cfg.mailConfigurado);
+    })
+    .catch(() => {});
+
+  cargarCotizaciones({ reset: true });
+}
+
+// Clic en la fila -> detalle; clic en la ✕ -> borrar.
+cotBody.addEventListener('click', async (e) => {
+  const borrar = e.target.closest('[data-delete-cot]');
+  if (borrar) {
+    e.stopPropagation();
+    const id = borrar.dataset.deleteCot;
+    const confirmado = await mostrarConfirm('¿Eliminar esta cotización? Se borran también sus ítems y notas.');
+    if (!confirmado) return;
+    borrar.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/cotizaciones/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+      borrar.closest('tr').remove();
+      cargarResumenCotizaciones();
+    } catch (err) {
+      await mostrarAlert(err.message);
+      borrar.disabled = false;
+    }
+    return;
+  }
+
+  const fila = e.target.closest('tr[data-id]');
+  if (fila) abrirCotizacion(fila.dataset.id);
+});
+
+// --- Buscador de clientes --------------------------------------------------
+
+const cotClienteBuscar = document.getElementById('cot-cliente-buscar');
+const cotClienteResultados = document.getElementById('cot-cliente-resultados');
+const cotClienteElegido = document.getElementById('cot-cliente-elegido');
+
+function mostrarClienteElegido(cliente) {
+  clienteElegido = cliente;
+  if (!cliente) {
+    cotClienteElegido.classList.add('hidden');
+    cotClienteBuscar.parentElement.classList.remove('hidden');
+    return;
+  }
+  document.getElementById('cot-cliente-nombre').textContent = cliente.paciente;
+  document.getElementById('cot-cliente-meta').textContent = [
+    `${cliente.tipo_doc || 'Doc'}: ${cliente.documento}`,
+    cliente.celular,
+    cliente.correo,
+  ]
+    .filter(Boolean)
+    .join('  ·  ');
+  cotClienteElegido.classList.remove('hidden');
+  cotClienteBuscar.parentElement.classList.add('hidden');
+  cotClienteResultados.classList.add('hidden');
+}
+
+const buscarClientes = debounce(async () => {
+  const q = cotClienteBuscar.value.trim();
+  if (q.length < 2) {
+    cotClienteResultados.classList.add('hidden');
+    return;
+  }
+  try {
+    const res = await fetch(`/api/admin/clientes?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    cotClienteResultados.innerHTML = '';
+    if (!data.rows.length) {
+      cotClienteResultados.innerHTML = '<p class="resultado-vacio">Sin resultados. Podés registrarlo con "+ Registrar usuario".</p>';
+    } else {
+      data.rows.slice(0, 20).forEach((c) => {
+        const div = document.createElement('div');
+        div.className = 'resultado-item';
+        div.dataset.documento = c.documento;
+        div.innerHTML = `<strong>${esc(c.paciente)}</strong><div class="resultado-meta">${esc(c.tipo_doc || 'Doc')}: ${esc(c.documento)}${c.celular ? ' · ' + esc(c.celular) : ''}</div>`;
+        div._cliente = c;
+        cotClienteResultados.appendChild(div);
+      });
+    }
+    cotClienteResultados.classList.remove('hidden');
+  } catch (err) {
+    cotClienteResultados.classList.add('hidden');
+  }
+}, 300);
+
+cotClienteBuscar.addEventListener('input', buscarClientes);
+cotClienteResultados.addEventListener('click', (e) => {
+  const item = e.target.closest('.resultado-item');
+  if (item) mostrarClienteElegido(item._cliente);
+});
+document.getElementById('btn-cambiar-cliente').addEventListener('click', () => {
+  mostrarClienteElegido(null);
+  cotClienteBuscar.value = '';
+  cotClienteBuscar.focus();
+});
+
+// --- Ítems -----------------------------------------------------------------
+
+const cotItemBuscar = document.getElementById('cot-item-buscar');
+const cotItemResultados = document.getElementById('cot-item-resultados');
+const cotItemPrecio = document.getElementById('cot-item-precio');
+const cotItemsBody = document.getElementById('cot-items-body');
+
+// El precio propuesto sale del tipo elegido, con fallback: no todos los
+// productos tienen los 3 precios (Pilates y Tienda no tienen máx. descuento).
+function precioDeProducto(producto, tipo) {
+  const porTipo = {
+    regular: producto.precio_regular,
+    oferta: producto.precio_oferta,
+    max_desc: producto.precio_max_desc,
+  };
+  return porTipo[tipo] ?? producto.precio_oferta ?? producto.precio_regular ?? 0;
+}
+
+function totalItems() {
+  return itemsEdicion.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0);
+}
+
+function renderItems() {
+  cotItemsBody.innerHTML = '';
+  itemsEdicion.forEach((item, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="cell-sku">${esc(item.sku) || '—'}</td>
+      <td class="cell-producto">${esc(item.nombre)}</td>
+      <td class="cell-precio"><input type="number" class="input-cantidad" min="1" step="1" value="${item.cantidad}" data-campo="cantidad" data-i="${i}" /></td>
+      <td class="cell-precio"><input type="number" class="input-precio" min="0" step="0.01" value="${item.precio_unitario}" data-campo="precio" data-i="${i}" /></td>
+      <td class="cell-precio">${fmtMoneda(item.cantidad * item.precio_unitario)}</td>
+      <td><button type="button" class="btn-delete-row" data-quitar="${i}" title="Quitar ítem">✕</button></td>
+    `;
+    cotItemsBody.appendChild(tr);
+  });
+  document.getElementById('cot-items-vacio').classList.toggle('hidden', itemsEdicion.length > 0);
+  document.getElementById('cot-total').textContent = fmtMoneda(totalItems());
+}
+
+cotItemsBody.addEventListener('input', (e) => {
+  const campo = e.target.dataset.campo;
+  if (!campo) return;
+  const i = Number(e.target.dataset.i);
+  if (campo === 'cantidad') {
+    itemsEdicion[i].cantidad = Math.max(1, Math.floor(Number(e.target.value) || 1));
+  } else {
+    itemsEdicion[i].precio_unitario = Math.max(0, Number(e.target.value) || 0);
+  }
+  // Se recalculan importes y total sin re-renderizar la fila que se está
+  // editando (perdería el foco del input).
+  const fila = e.target.closest('tr');
+  fila.children[4].textContent = fmtMoneda(itemsEdicion[i].cantidad * itemsEdicion[i].precio_unitario);
+  document.getElementById('cot-total').textContent = fmtMoneda(totalItems());
+});
+
+cotItemsBody.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-quitar]');
+  if (!btn) return;
+  itemsEdicion.splice(Number(btn.dataset.quitar), 1);
+  renderItems();
+});
+
+const buscarProductos = debounce(() => {
+  const q = cotItemBuscar.value.trim().toLowerCase();
+  if (q.length < 2) {
+    cotItemResultados.classList.add('hidden');
+    return;
+  }
+  const encontrados = [...productosPorSku.values()]
+    .filter((p) => p.sku.toLowerCase().includes(q) || p.nombre.toLowerCase().includes(q))
+    .slice(0, 20);
+
+  cotItemResultados.innerHTML = '';
+  if (!encontrados.length) {
+    cotItemResultados.innerHTML = '<p class="resultado-vacio">Sin productos que coincidan.</p>';
+  } else {
+    encontrados.forEach((p) => {
+      const div = document.createElement('div');
+      div.className = 'resultado-item';
+      div.innerHTML = `<strong>${esc(p.nombre)}</strong><div class="resultado-meta">${esc(p.sku)} · ${esc(p.categoria)}${p.familia ? ' · ' + esc(p.familia) : ''} · ${fmtMoneda(precioDeProducto(p, cotItemPrecio.value))}</div>`;
+      div._producto = p;
+      cotItemResultados.appendChild(div);
+    });
+  }
+  cotItemResultados.classList.remove('hidden');
+}, 250);
+
+cotItemBuscar.addEventListener('input', buscarProductos);
+cotItemPrecio.addEventListener('change', buscarProductos);
+
+cotItemResultados.addEventListener('click', (e) => {
+  const div = e.target.closest('.resultado-item');
+  if (!div || !div._producto) return;
+  const p = div._producto;
+  const tipo = cotItemPrecio.value;
+
+  // Si el producto ya está en la lista, se suma una unidad en vez de duplicar.
+  const existente = itemsEdicion.find((it) => it.sku === p.sku);
+  if (existente) {
+    existente.cantidad += 1;
+  } else {
+    itemsEdicion.push({
+      sku: p.sku,
+      nombre: p.nombre,
+      cantidad: 1,
+      precio_unitario: precioDeProducto(p, tipo),
+      tipo_precio: tipo,
+    });
+  }
+  cotItemBuscar.value = '';
+  cotItemResultados.classList.add('hidden');
+  renderItems();
+});
+
+// --- Modal de cotización ---------------------------------------------------
+
+function limpiarFormularioCotizacion() {
+  cotizacionFormMessage.textContent = '';
+  cotizacionFormMessage.className = 'message';
+  document.getElementById('cot-titulo').value = '';
+  document.getElementById('cot-validez').value = 30;
+  document.getElementById('cot-estado').value = 'abierta';
+  document.getElementById('cot-observaciones').value = '';
+  document.getElementById('cot-nota-texto').value = '';
+  cotClienteBuscar.value = '';
+  cotItemBuscar.value = '';
+  cotClienteResultados.classList.add('hidden');
+  cotItemResultados.classList.add('hidden');
+}
+
+function renderNotas(notas) {
+  const lista = document.getElementById('cot-notas-lista');
+  lista.innerHTML = '';
+  if (!notas.length) {
+    lista.innerHTML = '<li class="resultado-vacio">Sin notas todavía.</li>';
+    return;
+  }
+  notas.forEach((n) => {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="nota-fecha">${fmtFechaHora(n.created_at)}</span><span class="nota-texto">${esc(n.texto)}</span>`;
+    lista.appendChild(li);
+  });
+}
+
+function pintarCotizacion(cotizacion) {
+  cotizacionActual = cotizacion;
+  const esNueva = !cotizacion;
+
+  document.getElementById('cotizacion-modal-title').textContent = esNueva
+    ? 'Nueva cotización'
+    : `Cotización ${cotizacion.numero}`;
+
+  const pill = document.getElementById('cotizacion-semaforo');
+  pill.classList.toggle('hidden', esNueva);
+  if (!esNueva) {
+    pill.className = `semaforo semaforo-${cotizacion.semaforo}`;
+    pill.textContent = `${SEMAFORO_LABEL[cotizacion.semaforo]} · ${fmtHace(cotizacion.updated_at)}`;
+  }
+
+  document.getElementById('cot-bloque-notas').classList.toggle('hidden', esNueva);
+  document.getElementById('cot-acciones-doc').classList.toggle('hidden', esNueva);
+
+  if (esNueva) {
+    limpiarFormularioCotizacion();
+    itemsEdicion = [];
+    mostrarClienteElegido(null);
+  } else {
+    cotizacionFormMessage.textContent = '';
+    cotizacionFormMessage.className = 'message';
+    document.getElementById('cot-titulo').value = cotizacion.titulo || '';
+    document.getElementById('cot-validez').value = cotizacion.validez_dias;
+    document.getElementById('cot-estado').value = cotizacion.estado;
+    document.getElementById('cot-observaciones').value = cotizacion.observaciones || '';
+    itemsEdicion = cotizacion.items.map((i) => ({ ...i }));
+    mostrarClienteElegido({
+      documento: cotizacion.documento,
+      paciente: cotizacion.paciente,
+      tipo_doc: cotizacion.tipo_doc,
+      celular: cotizacion.celular,
+      correo: cotizacion.correo,
+    });
+    renderNotas(cotizacion.notas);
+  }
+
+  renderItems();
+  cotizacionModal.classList.remove('hidden');
+}
+
+async function abrirCotizacion(id) {
+  try {
+    // Se refresca el catálogo por si cambió el tarifario desde que cargó la
+    // página; los precios ya cotizados no se tocan (quedan congelados).
+    await cargarSelectPadres();
+    const res = await fetch(`/api/admin/cotizaciones/${id}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al abrir la cotización');
+    pintarCotizacion(data);
+  } catch (err) {
+    await mostrarAlert(err.message);
+  }
+}
+
+function cerrarCotizacionModal() {
+  cotizacionModal.classList.add('hidden');
+  cotizacionActual = null;
+}
+
+document.getElementById('btn-nueva-cotizacion').addEventListener('click', () => {
+  cargarSelectPadres(); // refresca productosPorSku, que alimenta el buscador de ítems
+  pintarCotizacion(null);
+});
+document.getElementById('cotizacion-cancelar').addEventListener('click', cerrarCotizacionModal);
+cotizacionModal.addEventListener('click', (e) => {
+  if (e.target === cotizacionModal) cerrarCotizacionModal();
+});
+
+cotizacionForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  cotizacionFormMessage.textContent = '';
+  cotizacionFormMessage.className = 'message';
+
+  if (!clienteElegido) {
+    cotizacionFormMessage.textContent = 'Elegí un cliente para la cotización.';
+    cotizacionFormMessage.className = 'message error';
+    return;
+  }
+  if (!itemsEdicion.length) {
+    cotizacionFormMessage.textContent = 'Agregá al menos un ítem.';
+    cotizacionFormMessage.className = 'message error';
+    return;
+  }
+
+  cotizacionGuardar.disabled = true;
+  const payload = {
+    documento: clienteElegido.documento,
+    titulo: document.getElementById('cot-titulo').value.trim(),
+    validez_dias: Number(document.getElementById('cot-validez').value),
+    estado: document.getElementById('cot-estado').value,
+    observaciones: document.getElementById('cot-observaciones').value.trim(),
+    items: itemsEdicion,
+  };
+
+  const editando = cotizacionActual !== null;
+  const url = editando ? `/api/admin/cotizaciones/${cotizacionActual.id}` : '/api/admin/cotizaciones';
+
+  try {
+    const res = await fetch(url, {
+      method: editando ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar');
+
+    // Se queda abierta mostrando la cotización guardada, para poder imprimirla
+    // o mandarla sin tener que volver a abrirla.
+    pintarCotizacion(data.cotizacion);
+    cargarCotizaciones({ reset: true });
+  } catch (err) {
+    cotizacionFormMessage.textContent = err.message;
+    cotizacionFormMessage.className = 'message error';
+  } finally {
+    cotizacionGuardar.disabled = false;
+  }
+});
+
+document.getElementById('btn-agregar-nota').addEventListener('click', async () => {
+  const input = document.getElementById('cot-nota-texto');
+  const texto = input.value.trim();
+  if (!texto || !cotizacionActual) return;
+
+  try {
+    const res = await fetch(`/api/admin/cotizaciones/${cotizacionActual.id}/notas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al agregar la nota');
+    input.value = '';
+    pintarCotizacion(data.cotizacion);
+    cargarCotizaciones({ reset: true });
+  } catch (err) {
+    await mostrarAlert(err.message);
+  }
+});
+
+// --- Imprimir / PDF / correo -----------------------------------------------
+
+document.getElementById('btn-cot-imprimir').addEventListener('click', () => {
+  if (cotizacionActual) window.open(`/api/admin/cotizaciones/${cotizacionActual.id}/pdf`, '_blank');
+});
+
+document.getElementById('btn-cot-pdf').addEventListener('click', () => {
+  if (cotizacionActual) window.location.href = `/api/admin/cotizaciones/${cotizacionActual.id}/pdf?descargar=1`;
+});
+
+const emailModal = document.getElementById('email-modal');
+const emailForm = document.getElementById('email-form');
+const emailMessage = document.getElementById('email-form-message');
+const emailEnviar = document.getElementById('email-enviar');
+
+document.getElementById('btn-cot-email').addEventListener('click', async () => {
+  if (!cotizacionActual) return;
+  if (!mailConfigurado) {
+    await mostrarAlert('El envío por correo no está configurado en el servidor (faltan SMTP_HOST, SMTP_USER y SMTP_PASS). Mientras tanto podés descargar el PDF y mandarlo a mano.');
+    return;
+  }
+  emailMessage.textContent = '';
+  emailMessage.className = 'message';
+  document.getElementById('email-destinatario').value = cotizacionActual.correo || '';
+  const saludo = cotizacionActual.apodo || (cotizacionActual.paciente || '').split(' ')[0];
+  document.getElementById('email-mensaje').value =
+    `Hola ${saludo},\n\nTe compartimos la cotización ${cotizacionActual.numero} que preparamos para vos.\n\n¡Gracias por elegir Infinia!`;
+  emailModal.classList.remove('hidden');
+});
+
+document.getElementById('email-cancelar').addEventListener('click', () => emailModal.classList.add('hidden'));
+emailModal.addEventListener('click', (e) => {
+  if (e.target === emailModal) emailModal.classList.add('hidden');
+});
+
+emailForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  emailMessage.textContent = '';
+  emailMessage.className = 'message';
+  emailEnviar.disabled = true;
+
+  try {
+    const res = await fetch(`/api/admin/cotizaciones/${cotizacionActual.id}/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        destinatario: document.getElementById('email-destinatario').value.trim(),
+        mensaje: document.getElementById('email-mensaje').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al enviar');
+    emailModal.classList.add('hidden');
+    pintarCotizacion(data.cotizacion);
+    await mostrarAlert(`Cotización enviada a ${data.destinatario}.`);
+  } catch (err) {
+    emailMessage.textContent = err.message;
+    emailMessage.className = 'message error';
+  } finally {
+    emailEnviar.disabled = false;
+  }
+});
+
+// --- Alta rápida de cliente ------------------------------------------------
+
+const clienteModal = document.getElementById('cliente-modal');
+const clienteForm = document.getElementById('cliente-form');
+const clienteMessage = document.getElementById('cliente-form-message');
+const clienteGuardar = document.getElementById('cliente-guardar');
+
+document.getElementById('btn-registrar-cliente').addEventListener('click', () => {
+  clienteMessage.textContent = '';
+  clienteMessage.className = 'message';
+  clienteForm.reset();
+  const selectDistrito = document.getElementById('cli-distrito');
+  if (!selectDistrito.options.length) {
+    selectDistrito.appendChild(new Option('—', ''));
+    distritosCache.forEach((d) => selectDistrito.appendChild(new Option(d, d)));
+  }
+  // Arranca con lo que ya se haya tipeado en el buscador, si parece documento.
+  const buscado = cotClienteBuscar.value.trim();
+  if (/^[A-Za-z0-9]+$/.test(buscado)) document.getElementById('cli-documento').value = buscado;
+  clienteModal.classList.remove('hidden');
+});
+
+document.getElementById('cliente-cancelar').addEventListener('click', () => clienteModal.classList.add('hidden'));
+clienteModal.addEventListener('click', (e) => {
+  if (e.target === clienteModal) clienteModal.classList.add('hidden');
+});
+
+clienteForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clienteMessage.textContent = '';
+  clienteMessage.className = 'message';
+
+  const tipoDoc = document.getElementById('cli-tipo-doc').value;
+  const documento = document.getElementById('cli-documento').value.trim();
+
+  // Misma validación de formato que usa el formulario público y el servidor.
+  if (window.DocumentoValidation && !window.DocumentoValidation.validarFormatoDocumento(tipoDoc, documento)) {
+    clienteMessage.textContent = `El documento no tiene un formato válido para ${tipoDoc}.`;
+    clienteMessage.className = 'message error';
+    return;
+  }
+
+  clienteGuardar.disabled = true;
+  try {
+    const res = await fetch('/api/clientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        DOCUMENTO: documento,
+        TIPO_DOC: tipoDoc,
+        PACIENTE: document.getElementById('cli-paciente').value.trim(),
+        APODO: document.getElementById('cli-apodo').value.trim(),
+        CELULAR: document.getElementById('cli-celular').value.trim(),
+        CORREO: document.getElementById('cli-correo').value.trim(),
+        DISTRITO: document.getElementById('cli-distrito').value,
+        SEXO: document.getElementById('cli-sexo').value,
+        F_NACIMIENTO: document.getElementById('cli-nacimiento').value || null,
+        DIRECCION: document.getElementById('cli-direccion').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al registrar');
+
+    clienteModal.classList.add('hidden');
+    mostrarClienteElegido(data.cliente);
+  } catch (err) {
+    clienteMessage.textContent = err.message;
+    clienteMessage.className = 'message error';
+  } finally {
+    clienteGuardar.disabled = false;
+  }
+});
+
 checkSession();
+
