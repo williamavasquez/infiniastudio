@@ -54,6 +54,7 @@
         <button type="button" class="nav-tab active" data-tab="dashboard">Dashboard</button>
         <button type="button" class="nav-tab" data-tab="usuarios">Usuarios</button>
         <button type="button" class="nav-tab" data-tab="checkins">Asistencias</button>
+        <button type="button" class="nav-tab" data-tab="productos">Productos</button>
       </nav>
       <button type="button" id="btn-logout" class="secondary">Salir</button>
     </header>
@@ -239,6 +240,128 @@
         <p id="checkins-status" class="table-status"></p>
       </div>
     </section>
+
+    <!-- Productos (tarifario) -->
+    <section id="tab-productos" class="tab-panel hidden">
+      <div class="stat-cards">
+        <div class="stat-card">
+          <span class="stat-label">Productos</span>
+          <span class="stat-value" id="productos-stat-total">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Categorías</span>
+          <span class="stat-value" id="productos-stat-categorias">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Familias</span>
+          <span class="stat-value" id="productos-stat-familias">—</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input type="text" id="productos-q" placeholder="Buscar por SKU, producto o familia..." class="search-input" />
+        <select id="productos-categoria">
+          <option value="">Todas las categorías</option>
+        </select>
+        <select id="productos-familia">
+          <option value="">Todas las familias</option>
+        </select>
+        <button type="button" id="btn-nuevo-producto">+ Nuevo producto</button>
+        <button type="button" id="btn-export-productos" class="secondary">Exportar CSV</button>
+      </div>
+
+      <div class="table-wrap" id="productos-scroll">
+        <table class="table-sortable">
+          <thead>
+            <tr>
+              <th data-sort="sku">SKU</th>
+              <th data-sort="categoria">Categoría</th>
+              <th data-sort="familia">Familia</th>
+              <th data-sort="nombre">Producto</th>
+              <th data-sort="precio_regular" class="col-precio">Precio regular</th>
+              <th data-sort="precio_oferta" class="col-precio">Precio oferta</th>
+              <th data-sort="precio_max_desc" class="col-precio">Precio máx. descuento</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="productos-body"></tbody>
+        </table>
+        <p id="productos-status" class="table-status"></p>
+      </div>
+    </section>
+  </div>
+
+  <!-- Alta / edición de producto -->
+  <div id="producto-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="producto-modal-title">Nuevo producto</h2>
+      <form id="producto-form" autocomplete="off">
+        <div class="tipo-producto">
+          <label class="radio-opcion">
+            <input type="radio" name="producto-tipo" value="nuevo" checked />
+            Producto nuevo
+          </label>
+          <label class="radio-opcion">
+            <input type="radio" name="producto-tipo" value="sub" />
+            Sub-producto de otro
+          </label>
+        </div>
+
+        <label class="campo-padre hidden" id="producto-padre-wrap">
+          Producto padre
+          <select id="producto-padre"></select>
+        </label>
+
+        <div class="form-grid">
+          <label>
+            SKU
+            <input type="text" id="producto-sku" placeholder="Se genera solo" readonly />
+            <button type="button" id="producto-sku-toggle" class="link-btn">Escribirlo a mano</button>
+          </label>
+          <label>
+            Categoría
+            <select id="producto-categoria" required></select>
+            <input
+              type="text"
+              id="producto-categoria-nueva"
+              class="campo-nuevo hidden"
+              placeholder="Nombre de la nueva categoría"
+            />
+          </label>
+          <label class="form-full">
+            Producto
+            <input type="text" id="producto-nombre" required placeholder="Nombre del producto o servicio" />
+          </label>
+          <label class="form-full">
+            Familia
+            <select id="producto-familia"></select>
+            <input
+              type="text"
+              id="producto-familia-nueva"
+              class="campo-nuevo hidden"
+              placeholder="Nombre de la nueva familia"
+            />
+          </label>
+          <label>
+            Precio regular
+            <input type="number" id="producto-precio-regular" min="0" step="0.01" placeholder="0.00" />
+          </label>
+          <label>
+            Precio oferta
+            <input type="number" id="producto-precio-oferta" min="0" step="0.01" placeholder="0.00" />
+          </label>
+          <label>
+            Precio máx. descuento
+            <input type="number" id="producto-precio-max" min="0" step="0.01" placeholder="0.00" />
+          </label>
+        </div>
+        <p id="producto-form-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="producto-cancelar" class="secondary">Cancelar</button>
+          <button type="submit" id="producto-guardar">Guardar</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- Modal genérico (confirmación / mensajes de error) -->

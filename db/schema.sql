@@ -52,3 +52,23 @@ ALTER TABLE clientes ADD COLUMN IF NOT EXISTS sexo TEXT;
 ALTER TABLE asistencias DROP CONSTRAINT IF EXISTS asistencias_nro_doc_fkey;
 ALTER TABLE asistencias ADD CONSTRAINT asistencias_nro_doc_fkey
   FOREIGN KEY (nro_doc) REFERENCES clientes(documento) ON DELETE CASCADE;
+
+-- ---------------------------------------------------------------------------
+-- Productos (tarifario). Cada pestaña del Excel del tarifario es una
+-- "categoria" (Estética / Pilates / Tienda Infinia) y "familia" es el
+-- subgrupo dentro de esa categoría. El SKU es el id del producto.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS productos (
+  sku             TEXT PRIMARY KEY,
+  categoria       TEXT NOT NULL,
+  familia         TEXT,
+  nombre          TEXT NOT NULL,
+  precio_regular  NUMERIC(10, 2),
+  precio_oferta   NUMERIC(10, 2),
+  precio_max_desc NUMERIC(10, 2),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_productos_categoria ON productos(categoria);
+CREATE INDEX IF NOT EXISTS idx_productos_familia ON productos(familia);

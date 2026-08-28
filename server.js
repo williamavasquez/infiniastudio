@@ -4,6 +4,7 @@ const express = require('express');
 const clientesRepo = require('./lib/clientesRepo');
 const asistenciasRepo = require('./lib/asistenciasRepo');
 const adminRepo = require('./lib/adminRepo');
+const productosRepo = require('./lib/productosRepo');
 const adminAuth = require('./lib/adminAuth');
 const { toCsv } = require('./lib/csv');
 const distritos = require('./lib/distritos.json');
@@ -210,6 +211,123 @@ app.get('/api/admin/asistencias/resumen', adminAuth.requireAdminAuth, async (req
   }
 });
 
+// ---------------------------------------------------------------------------
+// Productos (tarifario)
+// ---------------------------------------------------------------------------
+
+function parseProductosParams(req) {
+  const { q, categoria, familia, sort, dir, offset } = req.query;
+  return {
+    q: q || null,
+    categoria: categoria || null,
+    familia: familia || null,
+    sort: sort || null,
+    dir: dir || null,
+    offset: Number(offset) || 0,
+    limit: 100,
+  };
+}
+
+app.get('/api/admin/productos', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const data = await productosRepo.listProductos(parseProductosParams(req));
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Categorías y familias existentes, para los filtros y el formulario.
+app.get('/api/admin/productos/facetas', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    res.json(await productosRepo.getFacetas());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Listado liviano de productos, para elegir el "producto padre".
+app.get('/api/admin/productos/opciones', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    res.json({ rows: await productosRepo.listOpciones() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Próximo SKU disponible, para previsualizarlo en el formulario. El SKU
+// definitivo igual se genera al guardar (acá puede quedar obsoleto si otro
+// admin crea un producto en el medio).
+app.get('/api/admin/productos/next-sku', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const { categoria, familia, padre } = req.query;
+    const sku = await productosRepo.nextSku({
+      categoria: categoria || null,
+      familia: familia || null,
+      padre: padre || null,
+    });
+    res.json({ sku });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/productos/export', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const { q, categoria, familia, sort, dir } = req.query;
+    const rows = await productosRepo.listProductosAll({
+      q: q || null,
+      categoria: categoria || null,
+      familia: familia || null,
+      sort: sort || null,
+      dir: dir || null,
+    });
+    const csv = toCsv(rows, [
+      { key: 'sku', label: 'SKU' },
+      { key: 'categoria', label: 'Categoría' },
+      { key: 'familia', label: 'Familia' },
+      { key: 'nombre', label: 'Producto' },
+      { key: 'precio_regular', label: 'Precio regular' },
+      { key: 'precio_oferta', label: 'Precio oferta' },
+      { key: 'precio_max_desc', label: 'Precio máximo descuento' },
+    ]);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="productos.csv"');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/productos', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const producto = await productosRepo.createProducto(req.body || {});
+    res.json({ ok: true, producto });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/productos/:sku', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const producto = await productosRepo.updateProducto(req.params.sku, req.body || {});
+    if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
+    res.json({ ok: true, producto });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/productos/:sku', adminAuth.requireAdminAuth, async (req, res) => {
+  try {
+    const ok = await productosRepo.deleteProducto(req.params.sku);
+    if (!ok) return res.status(404).json({ error: 'Producto no encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/admin/clientes/:documento', adminAuth.requireAdminAuth, async (req, res) => {
   try {
     const ok = await clientesRepo.deleteByDocumento(req.params.documento);
@@ -228,6 +346,17 @@ app.delete('/api/admin/asistencias/:id', adminAuth.requireAdminAuth, async (req,
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Cada pestaña del panel tiene su propia URL (/admin/productos, /admin/usuarios,
+// ...). Todas sirven el mismo SPA; el front lee el path para abrir la pestaña.
+// Los assets (/admin/admin.js, /admin/admin.css) ya los resuelve express.static
+// antes de llegar acá.
+const ADMIN_TABS = ['dashboard', 'usuarios', 'asistencias', 'productos'];
+
+app.get('/admin/:tab', (req, res, next) => {
+  if (!ADMIN_TABS.includes(req.params.tab)) return next();
+  res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
 });
 
 app.listen(PORT, () => {

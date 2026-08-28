@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "migrate": "node scripts/migrate.js",
-    "seed": "node scripts/seed-clientes.js"
+    "seed": "node scripts/seed-clientes.js",
+    "seed:productos": "node scripts/seed-productos.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

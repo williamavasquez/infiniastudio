@@ -373,3 +373,198 @@ tbody tr:last-child td {
 .modal-box.modal-alert .modal-actions #modal-btn-cancel {
   display: none;
 }
+
+/* Productos */
+
+.table-sortable thead th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.table-sortable thead th[data-sort]:hover {
+  color: var(--brand-orange);
+}
+
+/* La flecha se reserva siempre para que el ancho no salte al ordenar. */
+.table-sortable thead th[data-sort]::after {
+  content: "↕";
+  margin-left: 6px;
+  font-size: 0.75em;
+  opacity: 0.3;
+}
+
+.table-sortable thead th[data-sort].sort-asc::after {
+  content: "↑";
+  opacity: 1;
+  color: var(--brand-orange);
+}
+
+.table-sortable thead th[data-sort].sort-desc::after {
+  content: "↓";
+  opacity: 1;
+  color: var(--brand-orange);
+}
+
+.col-precio {
+  text-align: right;
+}
+
+.cell-sku {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cell-precio {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-precio.vacio {
+  opacity: 0.35;
+}
+
+.cell-producto {
+  white-space: normal;
+  min-width: 260px;
+}
+
+.pill {
+  display: inline-block;
+  background: var(--brand-beige);
+  color: var(--brand-black);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.row-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.btn-edit-row {
+  background: none;
+  border: none;
+  color: var(--brand-black);
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.btn-edit-row:hover {
+  background: var(--brand-beige);
+  opacity: 1;
+}
+
+/* Modal de alta/edición de producto */
+
+.modal-box.modal-form {
+  max-width: 560px;
+  text-align: left;
+}
+
+.modal-form h2 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 1.2rem;
+  margin: 0 0 18px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.form-grid .form-full {
+  grid-column: 1 / -1;
+}
+
+.modal-form .modal-actions {
+  margin-top: 18px;
+}
+
+.modal-form .message {
+  text-align: left;
+}
+
+.tipo-producto {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--brand-beige);
+}
+
+.radio-opcion {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.radio-opcion input {
+  accent-color: var(--brand-orange);
+  width: auto;
+  padding: 0;
+  margin: 0;
+}
+
+.campo-padre {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+/* El SKU se autogenera: se ve claramente que no es un campo que se escribe,
+   hasta que el usuario pide escribirlo a mano. */
+#producto-sku[readonly] {
+  background: var(--brand-cream);
+  color: var(--brand-black);
+  opacity: 0.8;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.link-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--brand-orange);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link-btn:hover {
+  background: none;
+  color: #dc6636;
+}
+
+/* Campo que aparece al elegir "+ Nueva categoría/familia" en el select. */
+.campo-nuevo {
+  margin-top: 6px;
+}
