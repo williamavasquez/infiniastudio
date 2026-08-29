@@ -140,7 +140,7 @@ app.get('/api/admin/dashboard', adminAuth.requireAdminAuth, async (req, res) => 
 });
 
 function parseListParams(req) {
-  const { distrito, area, servicio, desde, hasta, q, offset } = req.query;
+  const { distrito, area, servicio, desde, hasta, q, documento, offset } = req.query;
   return {
     distrito: distrito || null,
     area: area || null,
@@ -148,6 +148,7 @@ function parseListParams(req) {
     desde: desde || null,
     hasta: hasta || null,
     q: q || null,
+    documento: documento || null,
     offset: Number(offset) || 0,
     limit: 100,
   };
@@ -400,10 +401,10 @@ app.put('/api/admin/cotizaciones/:id', adminAuth.requireAdminAuth, async (req, r
   }
 });
 
-app.put('/api/admin/cotizaciones/:id/estado', adminAuth.requireAdminAuth, async (req, res) => {
+app.put('/api/admin/cotizaciones/:id/items/:itemId/estado', adminAuth.requireAdminAuth, async (req, res) => {
   try {
-    const cotizacion = await cotizacionesRepo.setEstado(req.params.id, (req.body || {}).estado);
-    if (!cotizacion) return res.status(404).json({ error: 'Cotización no encontrada' });
+    const cotizacion = await cotizacionesRepo.setItemEstado(req.params.id, req.params.itemId, (req.body || {}).estado);
+    if (!cotizacion) return res.status(404).json({ error: 'Ítem no encontrado' });
     res.json({ ok: true, cotizacion });
   } catch (err) {
     res.status(400).json({ error: err.message });

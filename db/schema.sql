@@ -133,3 +133,48 @@ CREATE TABLE IF NOT EXISTS cotizacion_envios (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cotizacion_envios_cotizacion ON cotizacion_envios(cotizacion_id);
+
+-- ---------------------------------------------------------------------------
+-- Aceptación parcial: cada ítem se acepta/rechaza por separado (ej. el
+-- cliente acepta un servicio hoy y deja los otros dos en seguimiento). El
+-- estado de la cotización completa (`cotizaciones.estado`) deja de setearse a
+-- mano: de acá en más se deriva de estos estados al consultar (ver
+-- ESTADO_ITEMS_SQL en cotizacionesRepo.js) — 'abierta' si todos están
+-- pendientes, 'aceptada'/'rechazada' si todos coinciden, 'parcial' si están
+-- mezclados. La columna `cotizaciones.estado` queda en la tabla solo por
+-- compatibilidad histórica (nunca más se escribe).
+--
+-- El bloque está envuelto en un IF para que el backfill (heredar la decisión
+-- ya tomada a mano en `cotizaciones.estado` hacia los ítems) corra una sola
+-- vez: si corriera de nuevo en un deploy futuro, forzaría a 'aceptado' un
+-- ítem nuevo agregado después a una cotización vieja que ya estaba aceptada.
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'cotizacion_items' AND column_name = 'estado'
+  ) THEN
+    ALTER TABLE cotizacion_items ADD COLUMN estado TEXT NOT NULL DEFAULT 'pendiente';
+    ALTER TABLE cotizacion_items ADD CONSTRAINT cotizacion_items_estado_check
+      CHECK (estado IN ('pendiente', 'aceptado', 'rechazado'));
+
+    UPDATE cotizacion_items ci SET estado = 'aceptado'
+      FROM cotizaciones c WHERE c.id = ci.cotizacion_id AND c.estado = 'aceptada';
+    UPDATE cotizacion_items ci SET estado = 'rechazado'
+      FROM cotizaciones c WHERE c.id = ci.cotizacion_id AND c.estado = 'rechazada';
+  END IF;
+END $$;
+
+-- Historial de cambios de una cotización (ítems agregados/editados/quitados,
+-- cambios de estado por ítem): una línea de tiempo tipo "actividad de Jira"
+-- que se muestra junto a las notas manuales.
+CREATE TABLE IF NOT EXISTS cotizacion_historial (
+  id            SERIAL PRIMARY KEY,
+  cotizacion_id INTEGER NOT NULL REFERENCES cotizaciones(id) ON DELETE CASCADE,
+  tipo          TEXT NOT NULL,
+  detalle       TEXT NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cotizacion_historial_cotizacion ON cotizacion_historial(cotizacion_id);

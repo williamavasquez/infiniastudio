@@ -614,6 +614,67 @@ tbody tr:last-child td {
   color: #4a4644;
 }
 
+.semaforo-parcial {
+  background: #ece0f8;
+  color: #6a3d9a;
+}
+
+/* Estado por ítem (aceptación parcial): mismos colores que el semáforo de
+   cotización, con nombres masculinos porque el sujeto es el ítem. */
+.semaforo-pendiente {
+  background: #ececec;
+  color: #6f6f6f;
+}
+
+.semaforo-aceptado {
+  background: #dce9fb;
+  color: #2b5a97;
+}
+
+.semaforo-rechazado {
+  background: #d8d5d2;
+  color: #4a4644;
+}
+
+.modal-encabezado-pills {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.item-estado-celda {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.item-estado-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.item-estado-btns button {
+  border: 1px solid var(--brand-beige);
+  background: #fff;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.item-estado-btns button:hover {
+  background: var(--brand-cream);
+}
+
+.item-estado-btns .btn-aceptar-item {
+  color: #2b5a97;
+}
+
+.item-estado-btns .btn-rechazar-item {
+  color: #b23c22;
+}
+
 tbody tr.fila-clickeable {
   cursor: pointer;
 }
@@ -829,6 +890,24 @@ textarea:focus {
 .nota-texto {
   font-size: 0.87rem;
   white-space: pre-wrap;
+}
+
+/* Actividad: notas manuales se ven igual que siempre; los eventos
+   automáticos (ítems, estados) llevan una etiqueta gris y borde punteado
+   para distinguirse de una nota escrita a mano. */
+.actividad-lista li.actividad-evento {
+  border-left-style: dashed;
+  opacity: 0.85;
+}
+
+.actividad-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.55;
+  margin-right: 6px;
 }
 
 /* Acciones del modal: documento a la izquierda, guardar/cerrar a la derecha */

@@ -379,6 +379,8 @@ const usuariosConfig = {
   statusEl: document.getElementById('usuarios-status'),
   renderRow(c) {
     const tr = document.createElement('tr');
+    tr.className = 'fila-clickeable';
+    tr._cliente = c;
     tr.innerHTML = `
       <td>${c.documento}</td>
       <td>${c.tipo_doc || ''}</td>
@@ -400,21 +402,118 @@ const usuariosConfig = {
 
 document.getElementById('usuarios-body').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-delete-cliente]');
-  if (!btn) return;
-  const documento = btn.dataset.deleteCliente;
-  const confirmado = await mostrarConfirm(`¿Eliminar al usuario con documento ${documento}? Esta acción también eliminará sus asistencias.`);
-  if (!confirmado) return;
+  if (btn) {
+    e.stopPropagation();
+    const documento = btn.dataset.deleteCliente;
+    const confirmado = await mostrarConfirm(`¿Eliminar al usuario con documento ${documento}? Esta acción también eliminará sus asistencias.`);
+    if (!confirmado) return;
 
-  btn.disabled = true;
-  try {
-    const res = await fetch(`/api/admin/clientes/${encodeURIComponent(documento)}`, { method: 'DELETE' });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error al eliminar');
-    btn.closest('tr').remove();
-  } catch (err) {
-    await mostrarAlert(err.message);
-    btn.disabled = false;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/clientes/${encodeURIComponent(documento)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+      btn.closest('tr').remove();
+    } catch (err) {
+      await mostrarAlert(err.message);
+      btn.disabled = false;
+    }
+    return;
   }
+
+  const fila = e.target.closest('tr.fila-clickeable');
+  if (fila && fila._cliente) abrirUsuario(fila._cliente);
+});
+
+// --- Detalle de usuario: datos + sus cotizaciones --------------------------
+
+const usuarioModal = document.getElementById('usuario-modal');
+
+async function abrirUsuario(cliente) {
+  document.getElementById('usuario-modal-title').textContent = cliente.paciente || cliente.documento;
+  document.getElementById('usuario-modal-meta').textContent = [
+    `${cliente.tipo_doc || 'Doc'}: ${cliente.documento}`,
+    cliente.celular,
+    cliente.correo,
+  ]
+    .filter(Boolean)
+    .join('  ·  ');
+
+  const body = document.getElementById('usuario-cotizaciones-body');
+  const status = document.getElementById('usuario-cotizaciones-status');
+  body.innerHTML = '';
+  status.textContent = 'Cargando...';
+
+  const asisBody = document.getElementById('usuario-asistencias-body');
+  const asisStatus = document.getElementById('usuario-asistencias-status');
+  asisBody.innerHTML = '';
+  asisStatus.textContent = 'Cargando...';
+
+  usuarioModal.classList.remove('hidden');
+
+  try {
+    const res = await fetch(`/api/admin/cotizaciones?documento=${encodeURIComponent(cliente.documento)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cargar');
+
+    if (!data.rows.length) {
+      status.textContent = 'Sin cotizaciones para este usuario.';
+    } else {
+      status.textContent = '';
+      data.rows.forEach((c) => {
+        const tr = document.createElement('tr');
+        tr.className = 'fila-clickeable';
+        tr.dataset.id = c.id;
+        tr.innerHTML = `
+          <td class="cell-numero">${esc(c.numero)}</td>
+          <td>${esc(c.titulo) || ''}</td>
+          <td class="cell-precio">${fmtMoneda(c.total)}</td>
+          <td>${fmtFecha(c.created_at)}</td>
+          <td>${pillSemaforo(c.semaforo)}</td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+  } catch (err) {
+    status.textContent = 'Error al cargar.';
+  }
+
+  try {
+    const res = await fetch(`/api/admin/asistencias?documento=${encodeURIComponent(cliente.documento)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cargar');
+
+    if (!data.rows.length) {
+      asisStatus.textContent = 'Sin asistencias registradas.';
+    } else {
+      asisStatus.textContent = '';
+      data.rows.forEach((a) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${fmtFecha(a.fecha)}</td>
+          <td>${a.hora_atencion || ''}</td>
+          <td>${a.turno || ''}</td>
+          <td>${esc(a.area) || ''}</td>
+          <td>${esc(a.servicio) || ''}</td>
+        `;
+        asisBody.appendChild(tr);
+      });
+    }
+  } catch (err) {
+    asisStatus.textContent = 'Error al cargar.';
+  }
+}
+
+document.getElementById('usuario-cotizaciones-body').addEventListener('click', (e) => {
+  const fila = e.target.closest('tr[data-id]');
+  if (!fila) return;
+  usuarioModal.classList.add('hidden');
+  abrirCotizacion(fila.dataset.id);
+});
+
+document.getElementById('usuario-cerrar').addEventListener('click', () => usuarioModal.classList.add('hidden'));
+usuarioModal.addEventListener('click', (e) => {
+  if (e.target === usuarioModal) usuarioModal.classList.add('hidden');
 });
 
 document.getElementById('btn-export-csv').addEventListener('click', () => {
@@ -1038,6 +1137,10 @@ const SEMAFORO_LABEL = {
   rechazada: 'Rechazada',
 };
 
+// El estado de la cotización se deriva de sus ítems (aceptación parcial).
+const ESTADO_LABEL = { abierta: 'Abierta', aceptada: 'Aceptada', rechazada: 'Rechazada', parcial: 'Parcial' };
+const ITEM_ESTADO_LABEL = { pendiente: 'Pendiente', aceptado: 'Aceptado', rechazado: 'Rechazado' };
+
 const cotQ = document.getElementById('cot-q');
 const cotSemaforo = document.getElementById('cot-semaforo');
 const cotDesde = document.getElementById('cot-desde');
@@ -1279,9 +1382,26 @@ function totalItems() {
   return itemsEdicion.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0);
 }
 
+// Acciones de aceptación por ítem: solo tienen sentido para un ítem que ya
+// está guardado (tiene id) — uno recién agregado en esta edición todavía no
+// existe en el servidor, así que primero hay que guardar la cotización.
+function accionesItemEstado(item) {
+  if (!item.id) return '<span class="ayuda">Guardá para poder aceptar</span>';
+  if (item.estado === 'aceptado' || item.estado === 'rechazado') {
+    return `<div class="item-estado-btns">
+      <button type="button" class="btn-item-estado" data-item-id="${item.id}" data-estado="pendiente">↺ Pendiente</button>
+    </div>`;
+  }
+  return `<div class="item-estado-btns">
+    <button type="button" class="btn-item-estado btn-aceptar-item" data-item-id="${item.id}" data-estado="aceptado">✓ Aceptar</button>
+    <button type="button" class="btn-item-estado btn-rechazar-item" data-item-id="${item.id}" data-estado="rechazado">✕ Rechazar</button>
+  </div>`;
+}
+
 function renderItems() {
   cotItemsBody.innerHTML = '';
   itemsEdicion.forEach((item, i) => {
+    const estado = item.estado || 'pendiente';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="cell-sku">${esc(item.sku) || '—'}</td>
@@ -1289,6 +1409,10 @@ function renderItems() {
       <td class="cell-precio"><input type="number" class="input-cantidad" min="1" step="1" value="${item.cantidad}" data-campo="cantidad" data-i="${i}" /></td>
       <td class="cell-precio"><input type="number" class="input-precio" min="0" step="0.01" value="${item.precio_unitario}" data-campo="precio" data-i="${i}" /></td>
       <td class="cell-precio">${fmtMoneda(item.cantidad * item.precio_unitario)}</td>
+      <td class="item-estado-celda">
+        <span class="semaforo semaforo-${estado}">${ITEM_ESTADO_LABEL[estado]}</span>
+        ${accionesItemEstado(item)}
+      </td>
       <td><button type="button" class="btn-delete-row" data-quitar="${i}" title="Quitar ítem">✕</button></td>
     `;
     cotItemsBody.appendChild(tr);
@@ -1296,6 +1420,29 @@ function renderItems() {
   document.getElementById('cot-items-vacio').classList.toggle('hidden', itemsEdicion.length > 0);
   document.getElementById('cot-total').textContent = fmtMoneda(totalItems());
 }
+
+cotItemsBody.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-item-id]');
+  if (!btn || !cotizacionActual) return;
+  const itemId = btn.dataset.itemId;
+  const estado = btn.dataset.estado;
+
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/admin/cotizaciones/${cotizacionActual.id}/items/${itemId}/estado`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al actualizar el ítem');
+    pintarCotizacion(data.cotizacion);
+    cargarCotizaciones({ reset: true });
+  } catch (err) {
+    await mostrarAlert(err.message);
+    btn.disabled = false;
+  }
+});
 
 cotItemsBody.addEventListener('input', (e) => {
   const campo = e.target.dataset.campo;
@@ -1379,7 +1526,6 @@ function limpiarFormularioCotizacion() {
   cotizacionFormMessage.className = 'message';
   document.getElementById('cot-titulo').value = '';
   document.getElementById('cot-validez').value = 30;
-  document.getElementById('cot-estado').value = 'abierta';
   document.getElementById('cot-observaciones').value = '';
   document.getElementById('cot-nota-texto').value = '';
   cotClienteBuscar.value = '';
@@ -1388,16 +1534,29 @@ function limpiarFormularioCotizacion() {
   cotItemResultados.classList.add('hidden');
 }
 
-function renderNotas(notas) {
+const ACTIVIDAD_TAG = {
+  creacion: 'Creada',
+  item_agregado: 'Ítem',
+  item_quitado: 'Ítem',
+  item_cambiado: 'Ítem',
+  item_estado: 'Estado',
+};
+
+// Línea de tiempo tipo Jira: notas manuales + eventos automáticos (ítems,
+// estados), ya mezclados y ordenados por el servidor.
+function renderNotas(actividad) {
   const lista = document.getElementById('cot-notas-lista');
   lista.innerHTML = '';
-  if (!notas.length) {
-    lista.innerHTML = '<li class="resultado-vacio">Sin notas todavía.</li>';
+  if (!actividad.length) {
+    lista.innerHTML = '<li class="resultado-vacio">Sin actividad todavía.</li>';
     return;
   }
-  notas.forEach((n) => {
+  actividad.forEach((a) => {
+    const esNota = a.tipo === 'nota';
     const li = document.createElement('li');
-    li.innerHTML = `<span class="nota-fecha">${fmtFechaHora(n.created_at)}</span><span class="nota-texto">${esc(n.texto)}</span>`;
+    if (!esNota) li.className = 'actividad-evento';
+    const tag = esNota ? '' : `<span class="actividad-tag">${ACTIVIDAD_TAG[a.tipo] || a.tipo}</span>`;
+    li.innerHTML = `<span class="nota-fecha">${fmtFechaHora(a.created_at)}</span><span class="nota-texto">${tag}${esc(a.detalle)}</span>`;
     lista.appendChild(li);
   });
 }
@@ -1417,8 +1576,16 @@ function pintarCotizacion(cotizacion) {
     pill.textContent = `${SEMAFORO_LABEL[cotizacion.semaforo]} · ${fmtHace(cotizacion.updated_at)}`;
   }
 
+  const pillEstado = document.getElementById('cotizacion-estado');
+  pillEstado.classList.toggle('hidden', esNueva);
+  if (!esNueva) {
+    pillEstado.className = `semaforo semaforo-${cotizacion.estado}`;
+    pillEstado.textContent = ESTADO_LABEL[cotizacion.estado] || cotizacion.estado;
+  }
+
   document.getElementById('cot-bloque-notas').classList.toggle('hidden', esNueva);
   document.getElementById('cot-acciones-doc').classList.toggle('hidden', esNueva);
+  document.getElementById('cot-ayuda-estado').classList.toggle('hidden', esNueva);
 
   if (esNueva) {
     limpiarFormularioCotizacion();
@@ -1429,7 +1596,6 @@ function pintarCotizacion(cotizacion) {
     cotizacionFormMessage.className = 'message';
     document.getElementById('cot-titulo').value = cotizacion.titulo || '';
     document.getElementById('cot-validez').value = cotizacion.validez_dias;
-    document.getElementById('cot-estado').value = cotizacion.estado;
     document.getElementById('cot-observaciones').value = cotizacion.observaciones || '';
     itemsEdicion = cotizacion.items.map((i) => ({ ...i }));
     mostrarClienteElegido({
@@ -1439,7 +1605,7 @@ function pintarCotizacion(cotizacion) {
       celular: cotizacion.celular,
       correo: cotizacion.correo,
     });
-    renderNotas(cotizacion.notas);
+    renderNotas(cotizacion.actividad);
   }
 
   renderItems();
@@ -1495,7 +1661,6 @@ cotizacionForm.addEventListener('submit', async (e) => {
     documento: clienteElegido.documento,
     titulo: document.getElementById('cot-titulo').value.trim(),
     validez_dias: Number(document.getElementById('cot-validez').value),
-    estado: document.getElementById('cot-estado').value,
     observaciones: document.getElementById('cot-observaciones').value.trim(),
     items: itemsEdicion,
   };
