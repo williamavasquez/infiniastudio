@@ -1,5 +1,6 @@
 const loginScreen = document.getElementById('login-screen');
 const loginForm = document.getElementById('login-form');
+const loginUsername = document.getElementById('login-username');
 const loginPassword = document.getElementById('login-password');
 const loginMessage = document.getElementById('login-message');
 const adminPanel = document.getElementById('admin-panel');
@@ -12,6 +13,7 @@ const tabPanels = {
   checkins: document.getElementById('tab-checkins'),
   productos: document.getElementById('tab-productos'),
   cotizaciones: document.getElementById('tab-cotizaciones'),
+  cuentas: document.getElementById('tab-cuentas'),
 };
 
 // Cada pestaña tiene su propia URL (/admin/usuarios, /admin/productos, ...)
@@ -22,8 +24,36 @@ const TAB_SLUGS = {
   checkins: 'asistencias',
   productos: 'productos',
   cotizaciones: 'cotizaciones',
+  cuentas: 'cuentas',
 };
 const SLUG_TABS = Object.fromEntries(Object.entries(TAB_SLUGS).map(([tab, slug]) => [slug, tab]));
+
+// Qué permiso del rol habilita cada pestaña. El dashboard queda visible para
+// cualquiera que haya iniciado sesión.
+const TAB_PERMISOS = {
+  usuarios: 'clientes',
+  checkins: 'asistencias',
+  productos: 'productos',
+  cotizaciones: 'cotizaciones',
+  cuentas: 'cuentas',
+};
+
+let sesionActual = null;
+
+function tienePermiso(modulo) {
+  if (!sesionActual) return false;
+  if (sesionActual.esAdmin) return true;
+  return Boolean(sesionActual.permisos && sesionActual.permisos[modulo]);
+}
+
+function tienePestana(tab) {
+  const permiso = TAB_PERMISOS[tab];
+  return !permiso || tienePermiso(permiso);
+}
+
+function primerTabDisponible() {
+  return Object.keys(tabPanels).find((tab) => tienePestana(tab)) || 'dashboard';
+}
 
 let distritosCache = [];
 
@@ -118,8 +148,10 @@ async function checkSession() {
   const res = await fetch('/api/admin/session');
   const data = await res.json();
   if (data.authenticated) {
+    sesionActual = data.usuario;
     mostrarPanel();
   } else {
+    sesionActual = null;
     mostrarLogin();
   }
 }
@@ -129,10 +161,16 @@ function mostrarLogin() {
   adminPanel.classList.add('hidden');
 }
 
+function aplicarPermisosNav() {
+  navTabs.forEach((btn) => btn.classList.toggle('hidden', !tienePestana(btn.dataset.tab)));
+}
+
 function mostrarPanel() {
   loginScreen.classList.add('hidden');
   adminPanel.classList.remove('hidden');
-  activarTab(tabDesdeUrl());
+  aplicarPermisosNav();
+  const tab = tabDesdeUrl();
+  activarTab(tienePestana(tab) ? tab : primerTabDisponible());
   initPanel();
 }
 
@@ -145,11 +183,13 @@ loginForm.addEventListener('submit', async (e) => {
     const res = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: loginPassword.value }),
+      body: JSON.stringify({ username: loginUsername.value, password: loginPassword.value }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al ingresar');
     loginPassword.value = '';
+    const sesion = await fetch('/api/admin/session').then((r) => r.json());
+    sesionActual = sesion.usuario;
     mostrarPanel();
   } catch (err) {
     loginMessage.textContent = err.message;
@@ -211,10 +251,11 @@ async function initPanel() {
   document.getElementById('checkins-hasta').value = hoyData.fecha;
 
   configurarDashboard();
-  configurarTabla(usuariosConfig);
-  configurarTabla(checkinsConfig);
-  configurarProductos();
-  configurarCotizaciones();
+  if (tienePermiso('clientes')) configurarTabla(usuariosConfig);
+  if (tienePermiso('asistencias')) configurarTabla(checkinsConfig);
+  if (tienePermiso('productos')) configurarProductos();
+  if (tienePermiso('cotizaciones')) configurarCotizaciones();
+  if (tienePermiso('cuentas')) configurarCuentas();
 }
 
 function llenarSelect(select, valores) {
@@ -1364,18 +1405,28 @@ document.getElementById('btn-cambiar-cliente').addEventListener('click', () => {
 
 const cotItemBuscar = document.getElementById('cot-item-buscar');
 const cotItemResultados = document.getElementById('cot-item-resultados');
-const cotItemPrecio = document.getElementById('cot-item-precio');
 const cotItemsBody = document.getElementById('cot-items-body');
+const cotItemPrecioSelector = document.getElementById('cot-item-precio-selector');
+const cotItemPrecioNombre = document.getElementById('cot-item-precio-nombre');
+const cotItemPrecioOpciones = document.getElementById('cot-item-precio-opciones');
 
-// El precio propuesto sale del tipo elegido, con fallback: no todos los
-// productos tienen los 3 precios (Pilates y Tienda no tienen máx. descuento).
 function precioDeProducto(producto, tipo) {
   const porTipo = {
     regular: producto.precio_regular,
     oferta: producto.precio_oferta,
     max_desc: producto.precio_max_desc,
   };
-  return porTipo[tipo] ?? producto.precio_oferta ?? producto.precio_regular ?? 0;
+  return porTipo[tipo];
+}
+
+// Los precios que el rol actual puede ver/elegir al cotizar (algunos, como
+// el máximo descuento, solo se habilitan por rol porque requieren
+// aprobación). Admin ve siempre los 3.
+function preciosVisibles() {
+  if (!sesionActual) return [];
+  if (sesionActual.esAdmin) return PRECIO_TIERS;
+  const precios = sesionActual.permisos && sesionActual.permisos.precios;
+  return PRECIO_TIERS.filter((t) => precios && precios[t]);
 }
 
 function totalItems() {
@@ -1484,7 +1535,7 @@ const buscarProductos = debounce(() => {
     encontrados.forEach((p) => {
       const div = document.createElement('div');
       div.className = 'resultado-item';
-      div.innerHTML = `<strong>${esc(p.nombre)}</strong><div class="resultado-meta">${esc(p.sku)} · ${esc(p.categoria)}${p.familia ? ' · ' + esc(p.familia) : ''} · ${fmtMoneda(precioDeProducto(p, cotItemPrecio.value))}</div>`;
+      div.innerHTML = `<strong>${esc(p.nombre)}</strong><div class="resultado-meta">${esc(p.sku)} · ${esc(p.categoria)}${p.familia ? ' · ' + esc(p.familia) : ''}</div>`;
       div._producto = p;
       cotItemResultados.appendChild(div);
     });
@@ -1493,31 +1544,62 @@ const buscarProductos = debounce(() => {
 }, 250);
 
 cotItemBuscar.addEventListener('input', buscarProductos);
-cotItemPrecio.addEventListener('change', buscarProductos);
 
+// Elegir un producto NO lo agrega: primero muestra los precios disponibles
+// (solo los que el rol actual puede ver) para que se elija a mano cuál usar.
 cotItemResultados.addEventListener('click', (e) => {
   const div = e.target.closest('.resultado-item');
   if (!div || !div._producto) return;
-  const p = div._producto;
-  const tipo = cotItemPrecio.value;
+  abrirSelectorPrecio(div._producto);
+});
 
+function abrirSelectorPrecio(producto) {
+  cotItemResultados.classList.add('hidden');
+  cotItemPrecioNombre.textContent = producto.nombre;
+
+  const tiers = preciosVisibles().filter((t) => precioDeProducto(producto, t) !== null && precioDeProducto(producto, t) !== undefined);
+
+  cotItemPrecioOpciones.innerHTML = '';
+  if (!tiers.length) {
+    cotItemPrecioOpciones.innerHTML = '<p class="resultado-vacio">No tenés ningún precio habilitado para este producto.</p>';
+  } else {
+    tiers.forEach((t) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-precio-opcion';
+      btn.innerHTML = `${esc(PRECIO_TIER_LABEL[t])}<span class="precio-opcion-monto">${fmtMoneda(precioDeProducto(producto, t))}</span>`;
+      btn.addEventListener('click', () => agregarItemConPrecio(producto, t));
+      cotItemPrecioOpciones.appendChild(btn);
+    });
+  }
+  cotItemPrecioSelector.classList.remove('hidden');
+}
+
+function cerrarSelectorPrecio() {
+  cotItemPrecioSelector.classList.add('hidden');
+  cotItemBuscar.value = '';
+  cotItemBuscar.focus();
+}
+
+function agregarItemConPrecio(producto, tipo) {
   // Si el producto ya está en la lista, se suma una unidad en vez de duplicar.
-  const existente = itemsEdicion.find((it) => it.sku === p.sku);
+  const existente = itemsEdicion.find((it) => it.sku === producto.sku);
   if (existente) {
     existente.cantidad += 1;
   } else {
     itemsEdicion.push({
-      sku: p.sku,
-      nombre: p.nombre,
+      sku: producto.sku,
+      nombre: producto.nombre,
       cantidad: 1,
-      precio_unitario: precioDeProducto(p, tipo),
+      precio_unitario: precioDeProducto(producto, tipo),
       tipo_precio: tipo,
     });
   }
-  cotItemBuscar.value = '';
-  cotItemResultados.classList.add('hidden');
+  cerrarSelectorPrecio();
   renderItems();
-});
+}
+
+document.getElementById('cot-item-precio-cancelar').addEventListener('click', cerrarSelectorPrecio);
 
 // --- Modal de cotización ---------------------------------------------------
 
@@ -1532,6 +1614,7 @@ function limpiarFormularioCotizacion() {
   cotItemBuscar.value = '';
   cotClienteResultados.classList.add('hidden');
   cotItemResultados.classList.add('hidden');
+  cotItemPrecioSelector.classList.add('hidden');
 }
 
 const ACTIVIDAD_TAG = {
@@ -1564,6 +1647,8 @@ function renderNotas(actividad) {
 function pintarCotizacion(cotizacion) {
   cotizacionActual = cotizacion;
   const esNueva = !cotizacion;
+  cotItemPrecioSelector.classList.add('hidden');
+  cotItemResultados.classList.add('hidden');
 
   document.getElementById('cotizacion-modal-title').textContent = esNueva
     ? 'Nueva cotización'
@@ -1586,6 +1671,10 @@ function pintarCotizacion(cotizacion) {
   document.getElementById('cot-bloque-notas').classList.toggle('hidden', esNueva);
   document.getElementById('cot-acciones-doc').classList.toggle('hidden', esNueva);
   document.getElementById('cot-ayuda-estado').classList.toggle('hidden', esNueva);
+
+  // El cliente de una cotización ya guardada no se puede cambiar: solo se
+  // permite elegirlo/corregirlo mientras todavía es nueva.
+  document.getElementById('btn-cambiar-cliente').classList.toggle('hidden', !esNueva);
 
   if (esNueva) {
     limpiarFormularioCotizacion();
@@ -1845,6 +1934,249 @@ clienteForm.addEventListener('submit', async (e) => {
     clienteGuardar.disabled = false;
   }
 });
+
+// ---------------------------------------------------------------------------
+// Cuentas y roles
+// ---------------------------------------------------------------------------
+
+const MODULOS_PERMISOS = ['clientes', 'asistencias', 'productos', 'cotizaciones', 'cuentas'];
+const MODULO_LABEL = {
+  clientes: 'Clientes',
+  asistencias: 'Asistencias',
+  productos: 'Productos',
+  cotizaciones: 'Cotizaciones',
+  cuentas: 'Cuentas',
+};
+const PRECIO_TIERS = ['regular', 'oferta', 'max_desc'];
+const PRECIO_TIER_LABEL = { regular: 'Regular', oferta: 'Oferta', max_desc: 'Máx. descuento' };
+
+let rolesCache = [];
+let cuentasCuentaEditando = null;
+let rolEditando = null;
+
+const cuentasBody = document.getElementById('cuentas-body');
+const rolesBody = document.getElementById('roles-body');
+
+const cuentaModal = document.getElementById('cuenta-modal');
+const cuentaForm = document.getElementById('cuenta-form');
+const cuentaModalTitle = document.getElementById('cuenta-modal-title');
+const cuentaUsername = document.getElementById('cuenta-username');
+const cuentaPassword = document.getElementById('cuenta-password');
+const cuentaRolSelect = document.getElementById('cuenta-rol');
+const cuentaActivo = document.getElementById('cuenta-activo');
+const cuentaFormMessage = document.getElementById('cuenta-form-message');
+
+const rolModal = document.getElementById('rol-modal');
+const rolForm = document.getElementById('rol-form');
+const rolModalTitle = document.getElementById('rol-modal-title');
+const rolNombre = document.getElementById('rol-nombre');
+const rolFormMessage = document.getElementById('rol-form-message');
+
+function configurarCuentas() {
+  document.getElementById('btn-nueva-cuenta').addEventListener('click', () => abrirCuentaModal(null));
+  document.getElementById('cuenta-cancelar').addEventListener('click', () => cuentaModal.classList.add('hidden'));
+  cuentaForm.addEventListener('submit', guardarCuenta);
+
+  document.getElementById('btn-nuevo-rol').addEventListener('click', () => abrirRolModal(null));
+  document.getElementById('rol-cancelar').addEventListener('click', () => rolModal.classList.add('hidden'));
+  rolForm.addEventListener('submit', guardarRol);
+
+  cargarRoles();
+  cargarCuentas();
+}
+
+async function cargarRoles() {
+  const res = await fetch('/api/admin/roles');
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById('roles-status').textContent = data.error || 'Error al cargar roles';
+    return;
+  }
+  rolesCache = data.rows;
+  renderRoles();
+  llenarSelectRoles();
+}
+
+function renderRoles() {
+  rolesBody.innerHTML = rolesCache
+    .map((rol) => {
+      const celdas = MODULOS_PERMISOS.map((m) => `<td>${rol.permisos[m] ? '✓' : '—'}</td>`).join('');
+      const precios = PRECIO_TIERS.filter((t) => rol.permisos.precios && rol.permisos.precios[t])
+        .map((t) => PRECIO_TIER_LABEL[t])
+        .join(', ');
+      const acciones = rol.es_admin
+        ? '<span class="table-status">Protegido</span>'
+        : `<button type="button" class="link-btn" data-editar-rol="${rol.id}">Editar</button>
+           <button type="button" class="link-btn" data-borrar-rol="${rol.id}">Borrar</button>`;
+      return `<tr><td>${esc(rol.nombre)}</td>${celdas}<td>${esc(precios) || '—'}</td><td>${acciones}</td></tr>`;
+    })
+    .join('');
+  document.getElementById('roles-status').textContent = rolesCache.length ? '' : 'No hay roles.';
+}
+
+function llenarSelectRoles() {
+  const actual = cuentaRolSelect.value;
+  cuentaRolSelect.innerHTML = rolesCache.map((r) => `<option value="${r.id}">${esc(r.nombre)}</option>`).join('');
+  if (actual) cuentaRolSelect.value = actual;
+}
+
+rolesBody.addEventListener('click', async (e) => {
+  const editar = e.target.closest('[data-editar-rol]');
+  if (editar) return abrirRolModal(rolesCache.find((r) => String(r.id) === editar.dataset.editarRol));
+
+  const borrar = e.target.closest('[data-borrar-rol]');
+  if (borrar) {
+    const confirmado = await mostrarConfirm('¿Borrar este rol? Solo se puede borrar si ninguna cuenta lo usa.');
+    if (!confirmado) return;
+    const res = await fetch(`/api/admin/roles/${borrar.dataset.borrarRol}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) return mostrarAlert(data.error || 'No se pudo borrar el rol');
+    cargarRoles();
+  }
+});
+
+function abrirRolModal(rol) {
+  rolEditando = rol || null;
+  rolModalTitle.textContent = rol ? 'Editar rol' : 'Nuevo rol';
+  rolNombre.value = rol ? rol.nombre : '';
+  MODULOS_PERMISOS.forEach((m) => {
+    document.getElementById(`rol-perm-${m}`).checked = Boolean(rol && rol.permisos[m]);
+  });
+  PRECIO_TIERS.forEach((t) => {
+    document.getElementById(`rol-precio-${t}`).checked = Boolean(rol && rol.permisos.precios && rol.permisos.precios[t]);
+  });
+  rolFormMessage.textContent = '';
+  rolModal.classList.remove('hidden');
+}
+
+async function guardarRol(e) {
+  e.preventDefault();
+  rolFormMessage.textContent = '';
+  rolFormMessage.className = 'message';
+
+  const permisos = {};
+  MODULOS_PERMISOS.forEach((m) => {
+    permisos[m] = document.getElementById(`rol-perm-${m}`).checked;
+  });
+  permisos.precios = {};
+  PRECIO_TIERS.forEach((t) => {
+    permisos.precios[t] = document.getElementById(`rol-precio-${t}`).checked;
+  });
+
+  const body = { nombre: rolNombre.value.trim(), permisos };
+  const url = rolEditando ? `/api/admin/roles/${rolEditando.id}` : '/api/admin/roles';
+  const method = rolEditando ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar el rol');
+    rolModal.classList.add('hidden');
+    cargarRoles();
+  } catch (err) {
+    rolFormMessage.textContent = err.message;
+    rolFormMessage.className = 'message error';
+  }
+}
+
+async function cargarCuentas() {
+  const res = await fetch('/api/admin/cuentas');
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById('cuentas-status').textContent = data.error || 'Error al cargar cuentas';
+    return;
+  }
+  renderCuentas(data.rows);
+}
+
+function renderCuentas(rows) {
+  cuentasBody.innerHTML = rows
+    .map(
+      (u) => `<tr>
+        <td>${esc(u.username)}</td>
+        <td>${esc(u.rol_nombre)}</td>
+        <td>${u.activo ? 'Activo' : 'Inactivo'}</td>
+        <td>
+          <button type="button" class="link-btn" data-editar-cuenta="${u.id}">Editar</button>
+          <button type="button" class="link-btn" data-borrar-cuenta="${u.id}">Borrar</button>
+        </td>
+      </tr>`
+    )
+    .join('');
+  document.getElementById('cuentas-status').textContent = rows.length ? '' : 'No hay cuentas.';
+  cuentasBody.dataset.rows = JSON.stringify(rows);
+}
+
+cuentasBody.addEventListener('click', async (e) => {
+  const rows = JSON.parse(cuentasBody.dataset.rows || '[]');
+
+  const editar = e.target.closest('[data-editar-cuenta]');
+  if (editar) return abrirCuentaModal(rows.find((u) => String(u.id) === editar.dataset.editarCuenta));
+
+  const borrar = e.target.closest('[data-borrar-cuenta]');
+  if (borrar) {
+    const confirmado = await mostrarConfirm('¿Borrar esta cuenta?');
+    if (!confirmado) return;
+    const res = await fetch(`/api/admin/cuentas/${borrar.dataset.borrarCuenta}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) return mostrarAlert(data.error || 'No se pudo borrar la cuenta');
+    cargarCuentas();
+  }
+});
+
+function abrirCuentaModal(cuenta) {
+  cuentasCuentaEditando = cuenta || null;
+  cuentaModalTitle.textContent = cuenta ? 'Editar cuenta' : 'Nueva cuenta';
+  cuentaUsername.value = cuenta ? cuenta.username : '';
+  cuentaUsername.disabled = Boolean(cuenta);
+  cuentaPassword.value = '';
+  cuentaPassword.placeholder = cuenta ? 'Dejar en blanco para no cambiarla' : 'Mínimo 4 caracteres';
+  llenarSelectRoles();
+  cuentaRolSelect.value = cuenta ? cuenta.rol_id : rolesCache[0]?.id || '';
+  cuentaActivo.checked = cuenta ? cuenta.activo : true;
+  cuentaFormMessage.textContent = '';
+  cuentaModal.classList.remove('hidden');
+}
+
+async function guardarCuenta(e) {
+  e.preventDefault();
+  cuentaFormMessage.textContent = '';
+  cuentaFormMessage.className = 'message';
+
+  try {
+    let res;
+    if (cuentasCuentaEditando) {
+      const body = { rolId: Number(cuentaRolSelect.value), activo: cuentaActivo.checked };
+      if (cuentaPassword.value) body.password = cuentaPassword.value;
+      res = await fetch(`/api/admin/cuentas/${cuentasCuentaEditando.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } else {
+      res = await fetch('/api/admin/cuentas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: cuentaUsername.value.trim(),
+          password: cuentaPassword.value,
+          rolId: Number(cuentaRolSelect.value),
+        }),
+      });
+    }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar la cuenta');
+    cuentaModal.classList.add('hidden');
+    cargarCuentas();
+  } catch (err) {
+    cuentaFormMessage.textContent = err.message;
+    cuentaFormMessage.className = 'message error';
+  }
+}
 
 checkSession();
 
