@@ -178,3 +178,45 @@ CREATE TABLE IF NOT EXISTS cotizacion_historial (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cotizacion_historial_cotizacion ON cotizacion_historial(cotizacion_id);
+
+-- ---------------------------------------------------------------------------
+-- Cuentas del panel admin, con roles y permisos por módulo.
+--
+-- `es_admin` marca el rol "Admin" (dios): siempre tiene los 5 permisos en
+-- true y no se puede borrar ni editar sus permisos (ver usuariosRepo.js). Los
+-- demás roles son los que el admin crea desde /admin/cuentas, con los
+-- permisos que decida por módulo — incluido "productos", que arranca sin
+-- concederse a ningún rol nuevo pero no está bloqueado a nivel de esquema.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS roles (
+  id         SERIAL PRIMARY KEY,
+  nombre     TEXT NOT NULL UNIQUE,
+  es_admin   BOOLEAN NOT NULL DEFAULT false,
+  permisos   JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS usuarios (
+  id            SERIAL PRIMARY KEY,
+  username      TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  rol_id        INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+  activo        BOOLEAN NOT NULL DEFAULT true,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_usuarios_rol ON usuarios(rol_id);
+
+-- El rol Admin (dios) siempre existe y siempre tiene los 5 permisos. Se crea
+-- acá (idempotente) para que exista antes de que arranque el server y pueda
+-- bootstrapear la primera cuenta admin.
+-- `permisos.precios` controla, dentro de Cotizaciones, cuáles de los 3
+-- niveles de precio del tarifario puede ver/elegir el rol al agregar un
+-- ítem (algunos precios —el de máximo descuento— solo se habilitan con
+-- aprobación, y no todos los roles de ventas deberían verlos).
+INSERT INTO roles (nombre, es_admin, permisos)
+VALUES ('Admin', true, '{"clientes":true,"asistencias":true,"productos":true,"cotizaciones":true,"cuentas":true,"precios":{"regular":true,"oferta":true,"max_desc":true}}'::jsonb)
+ON CONFLICT (nombre) DO UPDATE SET es_admin = true,
+  permisos = '{"clientes":true,"asistencias":true,"productos":true,"cotizaciones":true,"cuentas":true,"precios":{"regular":true,"oferta":true,"max_desc":true}}'::jsonb;

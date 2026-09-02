@@ -27,8 +27,12 @@
     <h1>Panel de Administración</h1>
     <form id="login-form" autocomplete="off">
       <label>
+        Usuario
+        <input type="text" id="login-username" autocomplete="off" autofocus />
+      </label>
+      <label>
         Contraseña
-        <input type="password" id="login-password" autocomplete="off" autofocus />
+        <input type="password" id="login-password" autocomplete="off" />
       </label>
       <button type="submit">Ingresar</button>
       <p id="login-message" class="message"></p>
@@ -56,6 +60,7 @@
         <button type="button" class="nav-tab" data-tab="checkins">Asistencias</button>
         <button type="button" class="nav-tab" data-tab="productos">Productos</button>
         <button type="button" class="nav-tab" data-tab="cotizaciones">Cotizaciones</button>
+        <button type="button" class="nav-tab hidden" data-tab="cuentas" id="nav-cuentas">Cuentas</button>
       </nav>
       <button type="button" id="btn-logout" class="secondary">Salir</button>
     </header>
@@ -355,6 +360,51 @@
         <p id="cot-status" class="table-status"></p>
       </div>
     </section>
+
+    <!-- Cuentas y roles -->
+    <section id="tab-cuentas" class="tab-panel hidden">
+      <div class="filter-bar">
+        <h2 style="margin: 0; flex: 1">Cuentas</h2>
+        <button type="button" id="btn-nueva-cuenta">+ Nueva cuenta</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Rol</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="cuentas-body"></tbody>
+        </table>
+        <p id="cuentas-status" class="table-status"></p>
+      </div>
+
+      <div class="filter-bar" style="margin-top: 24px">
+        <h2 style="margin: 0; flex: 1">Roles</h2>
+        <button type="button" id="btn-nuevo-rol">+ Nuevo rol</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Rol</th>
+              <th>Clientes</th>
+              <th>Asistencias</th>
+              <th>Productos</th>
+              <th>Cotizaciones</th>
+              <th>Cuentas</th>
+              <th>Precios</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="roles-body"></tbody>
+        </table>
+        <p id="roles-status" class="table-status"></p>
+      </div>
+    </section>
   </div>
 
   <!-- Alta / edición de producto -->
@@ -480,13 +530,16 @@
           <div class="bloque-titulo">Ítems</div>
           <div class="item-picker">
             <input type="text" id="cot-item-buscar" class="search-input" placeholder="Buscar producto del tarifario por SKU o nombre..." />
-            <select id="cot-item-precio">
-              <option value="oferta">Precio oferta</option>
-              <option value="regular">Precio regular</option>
-              <option value="max_desc">Precio máx. descuento</option>
-            </select>
           </div>
           <div id="cot-item-resultados" class="resultados hidden"></div>
+          <div id="cot-item-precio-selector" class="precio-selector hidden">
+            <div class="precio-selector-header">
+              <strong id="cot-item-precio-nombre"></strong>
+              <button type="button" id="cot-item-precio-cancelar" class="link-btn">Cancelar</button>
+            </div>
+            <p class="ayuda">Elegí el precio con el que se agrega este ítem.</p>
+            <div id="cot-item-precio-opciones" class="precio-opciones"></div>
+          </div>
 
           <div class="table-wrap tabla-items">
             <table>
@@ -681,6 +734,65 @@
       <div class="modal-actions">
         <button type="button" id="usuario-cerrar" class="secondary">Cerrar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Alta / edición de cuenta -->
+  <div id="cuenta-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="cuenta-modal-title">Nueva cuenta</h2>
+      <form id="cuenta-form" autocomplete="off">
+        <label>
+          Usuario
+          <input type="text" id="cuenta-username" required autocomplete="off" />
+        </label>
+        <label>
+          Contraseña
+          <input type="password" id="cuenta-password" autocomplete="new-password" placeholder="Mínimo 4 caracteres" />
+        </label>
+        <label>
+          Rol
+          <select id="cuenta-rol" required></select>
+        </label>
+        <label class="checkbox-inline">
+          <input type="checkbox" id="cuenta-activo" checked />
+          Cuenta activa
+        </label>
+        <div class="modal-actions">
+          <button type="button" id="cuenta-cancelar" class="secondary">Cancelar</button>
+          <button type="submit">Guardar</button>
+        </div>
+        <p id="cuenta-form-message" class="message"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Alta / edición de rol -->
+  <div id="rol-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="rol-modal-title">Nuevo rol</h2>
+      <form id="rol-form" autocomplete="off">
+        <label>
+          Nombre del rol
+          <input type="text" id="rol-nombre" required autocomplete="off" />
+        </label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-clientes" /> Clientes</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-asistencias" /> Asistencias</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-productos" /> Productos</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-cotizaciones" /> Cotizaciones</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-cuentas" /> Cuentas</label>
+
+        <div class="bloque-titulo" style="margin-top: 12px">Precios que puede usar en cotizaciones</div>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-precio-regular" /> Precio regular</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-precio-oferta" /> Precio oferta</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-precio-max_desc" /> Precio máx. descuento (con aprobación)</label>
+
+        <div class="modal-actions">
+          <button type="button" id="rol-cancelar" class="secondary">Cancelar</button>
+          <button type="submit">Guardar</button>
+        </div>
+        <p id="rol-form-message" class="message"></p>
+      </form>
     </div>
   </div>
 

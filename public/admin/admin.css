@@ -503,6 +503,18 @@ tbody tr:last-child td {
   text-align: left;
 }
 
+.checkbox-inline {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  font-size: 0.85rem;
+}
+
+.checkbox-inline input {
+  width: auto;
+}
+
 .tipo-producto {
   display: flex;
   gap: 18px;
@@ -792,6 +804,48 @@ textarea:focus {
 
 .resultado-item:hover {
   background: var(--brand-cream);
+}
+
+.precio-selector {
+  border: 1px solid var(--brand-beige);
+  border-radius: 8px;
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--brand-cream);
+}
+
+.precio-selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.precio-opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn-precio-opcion {
+  background: #fff;
+  border: 1px solid var(--brand-beige);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.btn-precio-opcion:hover {
+  border-color: var(--brand-accent, #b08d57);
+}
+
+.btn-precio-opcion .precio-opcion-monto {
+  display: block;
+  font-weight: 600;
+  margin-top: 2px;
 }
 
 .resultado-meta {
