@@ -7,12 +7,15 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "migrate": "node scripts/migrate.js",
-    "seed": "node scripts/seed-clientes.js"
+    "seed": "node scripts/seed-clientes.js",
+    "seed:productos": "node scripts/seed-productos.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "express": "^4.19.2",
+    "nodemailer": "^9.0.6",
+    "pdfkit": "^0.20.1",
     "pg": "^8.22.0"
   }
 }
