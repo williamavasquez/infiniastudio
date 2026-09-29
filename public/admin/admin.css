@@ -1093,3 +1093,8 @@ tr.descontinuado td {
   align-self: center;
   min-width: 80px;
 }
+
+#inventario-body tr,
+tr.fila-clic {
+  cursor: pointer;
+}

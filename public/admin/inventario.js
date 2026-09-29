@@ -836,6 +836,11 @@ document.getElementById('inv-compra-det-anular').addEventListener('click', async
     invCompraDet.classList.add('hidden');
     await cargarCompras({ reset: true });
     await cargarInventario({ reset: true });
+    // Si se anuló desde el historial de un producto, refrescarlo (con el stock nuevo).
+    if (!invProdComprasModal.classList.contains('hidden')) {
+      const fila = [...invBody.querySelectorAll('tr')].find((tr) => tr._producto?.id === invProdComprasActual.id);
+      abrirComprasProducto(fila ? fila._producto : invProdComprasActual);
+    }
   } catch (err) {
     const msg = document.getElementById('inv-compra-det-message');
     msg.textContent = err.message;
@@ -915,6 +920,44 @@ async function abrirHistorial(p) {
     await mostrarAlert(err.message);
   }
 }
+// Historial de compras de un producto (clic en su fila). Cada compra abre su
+// detalle, desde donde también se puede anular.
+const invProdComprasModal = document.getElementById('inv-prod-compras-modal');
+let invProdComprasActual = null;
+
+async function abrirComprasProducto(p) {
+  invProdComprasActual = p;
+  document.getElementById('inv-prod-compras-titulo').textContent = `Compras — ${p.sku} ${p.nombre}`;
+  document.getElementById('inv-prod-compras-info').textContent =
+    `Stock: ${fmtCantidad(p.stock)} ${p.unidad_base} · Costo promedio: ${fmtCosto(p.costo_promedio)} por ${p.unidad_base}` +
+    ` · Compra en ${p.unidad_compra} (= ${fmtCantidad(p.factor)} ${p.unidad_base})`;
+  const body = document.getElementById('inv-prod-compras-body');
+  body.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>';
+  invProdComprasModal.classList.remove('hidden');
+  try {
+    const { rows } = await invApi(`/api/admin/inventario/${p.id}/compras`);
+    body.innerHTML = rows.length
+      ? rows
+          .map(
+            (c) => `<tr class="fila-clic${c.anulada_at ? ' descontinuado' : ''}" data-ver-compra="${c.compra_id}" title="Ver compra #${c.compra_id}">
+              <td>${esc(fmtFecha(c.fecha))}${c.anulada_at ? ' <span class="pill">Anulada</span>' : ''}</td>
+              <td>${esc(c.proveedor)}</td><td>${esc(c.nro_factura) || 's/n'}</td><td>${esc(c.sku_proveedor) || ''}</td>
+              <td class="cell-precio">${fmtCantidad(c.cantidad)} ${esc(c.unidad_compra)}</td>
+              <td class="cell-precio">${fmtMoneda(c.costo_unitario)}</td><td class="cell-precio">${fmtMoneda(c.subtotal)}</td></tr>`
+          )
+          .join('')
+      : '<tr><td colspan="7">Este producto todavía no tiene compras.</td></tr>';
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="7">${esc(err.message)}</td></tr>`;
+  }
+}
+
+document.getElementById('inv-prod-compras-body').addEventListener('click', (e) => {
+  const fila = e.target.closest('[data-ver-compra]');
+  if (fila) verCompra(fila.dataset.verCompra);
+});
+document.getElementById('inv-prod-compras-cerrar').addEventListener('click', () => invProdComprasModal.classList.add('hidden'));
+
 document.getElementById('inv-hist-mas').addEventListener('click', () => cargarHistorial({ reset: false }));
 document.getElementById('inv-hist-cerrar').addEventListener('click', () => invHistModal.classList.add('hidden'));
 
@@ -1199,7 +1242,12 @@ function configurarInventario() {
     if (hist) return abrirHistorial(hist.closest('tr')._producto);
 
     const borrar = e.target.closest('[data-delete-inv]');
-    if (!borrar) return;
+    if (!borrar) {
+      // Clic en cualquier otra parte de la fila: historial de compras.
+      const tr = e.target.closest('tr');
+      if (tr && tr._producto && !e.target.closest('input, button, a')) abrirComprasProducto(tr._producto);
+      return;
+    }
     const fila = borrar.closest('tr');
     if (!(await mostrarConfirm(`¿Eliminar el producto ${fila._producto.sku} — ${fila._producto.nombre}?`))) return;
     try {

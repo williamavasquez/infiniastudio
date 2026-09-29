@@ -621,6 +621,11 @@ app.get('/api/admin/inventario/:id(\\d+)/movimientos', permisoInventario, maneja
   500
 ));
 
+app.get('/api/admin/inventario/:id(\\d+)/compras', permisoInventario, manejar(
+  async (req) => ({ rows: await comprasRepo.listComprasProducto(req.params.id) }),
+  500
+));
+
 app.post('/api/admin/inventario/:id(\\d+)/ajuste', permisoInventario, manejar(async (req) => ({
   ok: true,
   ...(await inventarioRepo.ajustarStock({ productoId: req.params.id, cantidad: (req.body || {}).cantidad, motivo: (req.body || {}).motivo, usuarioId: req.user.id })),

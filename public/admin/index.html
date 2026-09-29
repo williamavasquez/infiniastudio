@@ -1052,6 +1052,24 @@
     </div>
   </div>
 
+  <!-- Historial de compras de un producto (clic en la fila). Va antes del
+       detalle de compra para que el detalle se abra encima. -->
+  <div id="inv-prod-compras-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
+      <h2 id="inv-prod-compras-titulo">Compras</h2>
+      <p id="inv-prod-compras-info" class="modal-nota"></p>
+      <div class="table-wrap modal-tabla">
+        <table>
+          <thead><tr><th>Fecha</th><th>Proveedor</th><th>Factura</th><th>SKU prov.</th><th class="col-precio">Cantidad</th><th class="col-precio">Costo unit.</th><th class="col-precio">Subtotal</th></tr></thead>
+          <tbody id="inv-prod-compras-body"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="inv-prod-compras-cerrar" class="secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Detalle de compra (con anulación) -->
   <div id="inv-compra-det-modal" class="modal-overlay hidden">
     <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
