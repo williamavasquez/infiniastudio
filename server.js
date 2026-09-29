@@ -643,6 +643,31 @@ app.post('/api/admin/inventario/guias-consumo', permisoInventario, express.raw({
   return { ok: true, ...(await insumosRepo.importarGuias(req.body)) };
 }));
 
+app.get('/api/admin/inventario/reposicion', permisoInventario, manejar(async () => ({ grupos: await inventarioRepo.listReposicion() }), 500));
+
+app.get('/api/admin/inventario/reposicion/export', permisoInventario, async (req, res) => {
+  try {
+    const grupos = await inventarioRepo.listReposicion();
+    const filas = grupos.flatMap((g) => g.items.map((i) => ({ ...i, proveedor: g.proveedor })));
+    const csv = toCsv(filas, [
+      { key: 'proveedor', label: 'Proveedor' },
+      { key: 'sku', label: 'SKU' },
+      { key: 'nombre', label: 'Producto' },
+      { key: 'sku_proveedor', label: 'SKU proveedor' },
+      { key: 'stock', label: 'Stock' },
+      { key: 'stock_minimo', label: 'Stock mínimo' },
+      { key: 'unidad_base', label: 'Unidad base' },
+      { key: 'sugerido', label: 'Cantidad sugerida' },
+      { key: 'unidad_compra', label: 'Unidad de compra' },
+    ]);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="reposicion.csv"');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/admin/inventario', permisoInventario, manejar(async (req) => ({ ok: true, producto: await inventarioRepo.createProducto(req.body || {}) })));
 
 app.put('/api/admin/inventario/:id(\\d+)', permisoInventario, async (req, res) => {

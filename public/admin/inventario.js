@@ -1071,6 +1071,43 @@ document.getElementById('inv-desc-form').addEventListener('submit', async (e) =>
   }
 });
 
+// --- Reposición -------------------------------------------------------------
+
+async function abrirReposicion() {
+  const cont = document.getElementById('inv-repo-contenido');
+  cont.textContent = 'Cargando...';
+  document.getElementById('inv-repo-modal').classList.remove('hidden');
+  try {
+    const { grupos } = await invApi('/api/admin/inventario/reposicion');
+    cont.innerHTML = grupos.length
+      ? grupos
+          .map(
+            (g) => `
+      <div class="bloque-titulo" style="margin-top: 12px">${esc(g.proveedor)}</div>
+      <table>
+        <thead><tr><th>SKU</th><th>Producto</th><th>SKU prov.</th><th class="col-precio">Stock</th><th class="col-precio">Mínimo</th><th class="col-precio">Sugerido</th></tr></thead>
+        <tbody>${g.items
+          .map(
+            (i) => `<tr><td class="cell-sku">${esc(i.sku)}</td><td>${esc(i.nombre)}</td><td>${esc(i.sku_proveedor) || ''}</td>
+            <td class="cell-precio${i.stock < 0 ? ' stock-negativo' : ''}">${fmtCantidad(i.stock)} ${esc(i.unidad_base)}</td>
+            <td class="cell-precio">${fmtCantidad(i.stock_minimo)}</td>
+            <td class="cell-precio"><b>${fmtCantidad(i.sugerido)}</b> ${esc(i.unidad_compra)}</td></tr>`
+          )
+          .join('')}</tbody>
+      </table>`
+          )
+          .join('')
+      : '<p class="table-status">Nada por reponer.</p>';
+  } catch (err) {
+    cont.textContent = err.message;
+  }
+}
+document.getElementById('btn-inv-reposicion').addEventListener('click', abrirReposicion);
+document.getElementById('inv-repo-cerrar').addEventListener('click', () => document.getElementById('inv-repo-modal').classList.add('hidden'));
+document.getElementById('inv-repo-export').addEventListener('click', () => {
+  window.location.href = '/api/admin/inventario/reposicion/export';
+});
+
 // --- Cableado ---------------------------------------------------------------
 
 function marcarColumnaOrdenadaInv() {

@@ -326,6 +326,7 @@
         <button type="button" id="btn-nuevo-inventario">+ Nuevo producto</button>
         <button type="button" id="btn-inv-compra">Registrar compra</button>
         <button type="button" id="btn-inv-compras" class="secondary">Compras</button>
+        <button type="button" id="btn-inv-reposicion" class="secondary">Reposición</button>
         <button type="button" id="btn-inv-categorias" class="secondary">Categorías</button>
         <button type="button" id="btn-inv-proveedores" class="secondary">Proveedores</button>
         <button type="button" id="btn-inv-conteo" class="secondary">Conteo inicial</button>
@@ -1163,6 +1164,19 @@
           <button type="submit">Descontinuar</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Reporte de reposición -->
+  <div id="inv-repo-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
+      <h2>Reposición</h2>
+      <p class="modal-nota">Productos en el mínimo o debajo, agrupados por el proveedor de la última compra. Sugerido en unidad de compra.</p>
+      <div id="inv-repo-contenido" class="modal-tabla"></div>
+      <div class="modal-actions">
+        <button type="button" id="inv-repo-cerrar" class="secondary">Cerrar</button>
+        <button type="button" id="inv-repo-export">Exportar CSV</button>
+      </div>
     </div>
   </div>
 
