@@ -1073,3 +1073,21 @@ tr.descontinuado td {
 .cell-hijo {
   padding-left: 28px;
 }
+
+.btn-danger {
+  background: #b23c22;
+}
+
+.btn-danger:hover {
+  background: #952f19;
+}
+
+.lin-unidad {
+  align-self: center;
+  white-space: nowrap;
+}
+
+.lin-subtotal {
+  align-self: center;
+  min-width: 80px;
+}

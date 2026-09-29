@@ -324,3 +324,37 @@ CREATE TABLE IF NOT EXISTS movimientos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_movimientos_producto ON movimientos(producto_id, created_at);
+
+-- ---------------------------------------------------------------------------
+-- Compras. Se cargan en unidad de compra (cajas, frascos); al guardar suben el
+-- stock (en unidad base) y actualizan el costo promedio en la misma
+-- transacción. Una compra nunca se edita: se anula (anulada_at) y sus
+-- movimientos se revierten con movimientos `anulacion`. `archivo` queda
+-- reservado para adjuntar la factura más adelante.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS compras (
+  id           SERIAL PRIMARY KEY,
+  proveedor_id INTEGER NOT NULL REFERENCES proveedores(id) ON DELETE RESTRICT,
+  nro_factura  TEXT,
+  fecha        DATE NOT NULL DEFAULT CURRENT_DATE,
+  total        NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  archivo      TEXT,
+  anulada_at   TIMESTAMPTZ,
+  usuario_id   INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_compras_fecha ON compras(fecha);
+
+-- cantidad en unidad de compra; costo_unitario por unidad de compra, con IGV.
+CREATE TABLE IF NOT EXISTS compra_items (
+  id             SERIAL PRIMARY KEY,
+  compra_id      INTEGER NOT NULL REFERENCES compras(id) ON DELETE CASCADE,
+  producto_id    INTEGER NOT NULL REFERENCES inventario(id) ON DELETE RESTRICT,
+  cantidad       NUMERIC(14, 4) NOT NULL CHECK (cantidad > 0),
+  costo_unitario NUMERIC(14, 4) NOT NULL CHECK (costo_unitario >= 0),
+  sku_proveedor  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_compra_items_compra ON compra_items(compra_id);
+CREATE INDEX IF NOT EXISTS idx_compra_items_producto ON compra_items(producto_id);

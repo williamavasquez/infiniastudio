@@ -7,6 +7,7 @@ const adminRepo = require('./lib/adminRepo');
 const serviciosRepo = require('./lib/serviciosRepo');
 const inventarioRepo = require('./lib/inventarioRepo');
 const proveedoresRepo = require('./lib/proveedoresRepo');
+const comprasRepo = require('./lib/comprasRepo');
 const cotizacionesRepo = require('./lib/cotizacionesRepo');
 const { generarCotizacionPdf, nombreArchivo } = require('./lib/cotizacionPdf');
 const mailer = require('./lib/mailer');
@@ -511,6 +512,7 @@ app.get('/api/admin/inventario/export', permisoInventario, async (req, res) => {
         { key: 'stock_minimo', label: 'Stock mínimo' },
         { key: 'semaforo', label: 'Semáforo' },
         { key: 'costo_promedio', label: 'Costo promedio' },
+        { key: 'ultima_compra', label: 'Última compra' },
         { key: 'proveedores', label: 'Proveedores' },
         { key: 'estado', label: 'Estado' },
       ]
@@ -586,6 +588,42 @@ app.post('/api/admin/inventario/bulk', permisoInventario, manejar(async (req) =>
   const actualizados = await inventarioRepo.bulk({ ids, filtro: filtro && parseInventarioFiltro(filtro), accion, valor });
   return { ok: true, actualizados };
 }));
+
+// Productos activos con lo necesario para armar las líneas de una compra.
+app.get('/api/admin/inventario/opciones', permisoInventario, manejar(async () => ({ rows: await inventarioRepo.listOpciones() }), 500));
+
+app.get('/api/admin/inventario/compras', permisoInventario, manejar(
+  (req) => comprasRepo.listCompras({ offset: Number(req.query.offset) || 0 }),
+  500
+));
+
+app.get('/api/admin/inventario/compras/:id(\\d+)', permisoInventario, async (req, res) => {
+  try {
+    const compra = await comprasRepo.getCompra(req.params.id);
+    if (!compra) return res.status(404).json({ error: 'Compra no encontrada' });
+    res.json({ compra });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/inventario/compras', permisoInventario, manejar(
+  async (req) => ({ ok: true, compra: await comprasRepo.createCompra(req.body || {}, req.user.id) })
+));
+
+app.post('/api/admin/inventario/compras/:id(\\d+)/anular', permisoInventario, manejar(
+  async (req) => ({ ok: true, compra: await comprasRepo.anularCompra(req.params.id, req.user.id) })
+));
+
+app.get('/api/admin/inventario/:id(\\d+)/movimientos', permisoInventario, manejar(
+  (req) => inventarioRepo.listMovimientos(req.params.id, { offset: Number(req.query.offset) || 0 }),
+  500
+));
+
+app.post('/api/admin/inventario/:id(\\d+)/ajuste', permisoInventario, manejar(async (req) => ({
+  ok: true,
+  ...(await inventarioRepo.ajustarStock({ productoId: req.params.id, cantidad: (req.body || {}).cantidad, motivo: (req.body || {}).motivo, usuarioId: req.user.id })),
+})));
 
 app.post('/api/admin/inventario', permisoInventario, manejar(async (req) => ({ ok: true, producto: await inventarioRepo.createProducto(req.body || {}) })));
 

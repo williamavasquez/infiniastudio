@@ -134,9 +134,12 @@ function renderInventarioRow(p) {
     <td class="cell-precio${p.stock_minimo === null ? ' vacio' : ''}">${p.stock_minimo === null ? '—' : fmtCantidad(p.stock_minimo)}</td>
     <td>${p.semaforo ? `<span class="semaforo semaforo-${p.semaforo}">${SEMAFORO_INV_LABEL[p.semaforo]}</span>` : '—'}</td>
     <td class="cell-precio">${fmtCosto(p.costo_promedio)}</td>
+    <td>${p.ultima_compra ? esc(fmtFecha(p.ultima_compra)) : '—'}</td>
     <td>${proveedores || '—'}</td>
     <td>
       <div class="row-actions">
+        <button type="button" class="btn-edit-row" data-ajuste-inv="${p.id}" title="Ajustar stock">±</button>
+        <button type="button" class="btn-edit-row" data-hist-inv="${p.id}" title="Ver movimientos">☰</button>
         <button type="button" class="btn-edit-row" data-edit-inv="${p.id}" title="Editar producto">✎</button>
         <button type="button" class="btn-delete-row" data-delete-inv="${p.id}" title="Eliminar producto">✕</button>
       </div>
@@ -625,6 +628,285 @@ document.getElementById('inv-conteo-subir').addEventListener('click', async () =
   }
 });
 
+// --- Compras ----------------------------------------------------------------
+
+const invCompraModal = document.getElementById('inv-compra-modal');
+const invCompraLineas = document.getElementById('inv-compra-lineas');
+const invCompraMessage = document.getElementById('inv-compra-message');
+let invOpciones = []; // productos activos, para las líneas
+const invEtiqueta = (p) => `${p.sku} — ${p.nombre}`;
+
+async function abrirCompra() {
+  invCompraMessage.textContent = '';
+  invCompraMessage.className = 'message';
+  try {
+    const [opc, hoy] = await Promise.all([invApi('/api/admin/inventario/opciones'), fetch('/api/admin/hoy').then((r) => r.json())]);
+    invOpciones = opc.rows;
+    document.getElementById('inv-compra-fecha').value = hoy.fecha;
+  } catch (err) {
+    return mostrarAlert(err.message);
+  }
+  document.getElementById('inv-compra-opciones').innerHTML = invOpciones.map((p) => `<option value="${esc(invEtiqueta(p))}"></option>`).join('');
+  document.getElementById('inv-compra-proveedor').innerHTML = '<option value="">Elegí...</option>' + opcionesProveedor(null);
+  document.getElementById('inv-compra-proveedor').value = '';
+  document.getElementById('inv-compra-factura').value = '';
+  invCompraLineas.innerHTML = '';
+  agregarLineaCompra();
+  actualizarTotalCompra();
+  invCompraModal.classList.remove('hidden');
+}
+
+function productoDeLinea(linea) {
+  return invOpciones.find((p) => invEtiqueta(p) === linea.querySelector('.lin-producto').value);
+}
+
+// Al elegir el producto se muestra la unidad de compra (y cuánto equivale en
+// base) y se propone el SKU con el que este proveedor lo vende, si ya se sabe.
+function refrescarLineaCompra(linea) {
+  const p = productoDeLinea(linea);
+  linea.querySelector('.lin-unidad').textContent = p ? `${p.unidad_compra} (= ${fmtCantidad(p.factor)} ${p.unidad_base})` : '';
+  const skuInput = linea.querySelector('.lin-sku');
+  const prov = Number(document.getElementById('inv-compra-proveedor').value);
+  if (p && !skuInput.value) {
+    const s = p.proveedores.find((x) => x.proveedor_id === prov && x.sku_proveedor);
+    if (s) skuInput.value = s.sku_proveedor;
+  }
+  const cant = Number(linea.querySelector('.lin-cantidad').value) || 0;
+  const costo = Number(linea.querySelector('.lin-costo').value) || 0;
+  linea.querySelector('.lin-subtotal').textContent = fmtMoneda(Math.round(cant * costo * 100) / 100);
+  actualizarTotalCompra();
+}
+
+function actualizarTotalCompra() {
+  const total = [...invCompraLineas.querySelectorAll('.inv-prov-fila')].reduce((acc, l) => {
+    const cant = Number(l.querySelector('.lin-cantidad').value) || 0;
+    const costo = Number(l.querySelector('.lin-costo').value) || 0;
+    return acc + Math.round(cant * costo * 100) / 100;
+  }, 0);
+  document.getElementById('inv-compra-total').textContent = fmtMoneda(total);
+}
+
+function agregarLineaCompra() {
+  const div = document.createElement('div');
+  div.className = 'inv-prov-fila';
+  div.innerHTML = `
+    <input type="text" class="lin-producto" list="inv-compra-opciones" placeholder="SKU o nombre del producto" style="flex: 3" />
+    <input type="number" class="lin-cantidad" min="0" step="any" placeholder="Cant." />
+    <input type="number" class="lin-costo" min="0" step="any" placeholder="Costo unit." />
+    <input type="text" class="lin-sku" placeholder="SKU prov." />
+    <span class="lin-unidad table-status"></span>
+    <span class="lin-subtotal cell-precio">S/ 0.00</span>
+    <button type="button" class="btn-delete-row" title="Quitar">✕</button>
+  `;
+  div.addEventListener('input', () => refrescarLineaCompra(div));
+  div.querySelector('button').addEventListener('click', () => {
+    div.remove();
+    actualizarTotalCompra();
+  });
+  invCompraLineas.appendChild(div);
+}
+
+document.getElementById('inv-compra-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  invCompraMessage.textContent = '';
+  invCompraMessage.className = 'message';
+  const items = [];
+  for (const l of invCompraLineas.querySelectorAll('.inv-prov-fila')) {
+    const p = productoDeLinea(l);
+    if (!p && !l.querySelector('.lin-producto').value) continue; // línea vacía
+    if (!p) {
+      invCompraMessage.textContent = 'Elegí cada producto de la lista de sugerencias.';
+      invCompraMessage.className = 'message error';
+      return;
+    }
+    items.push({
+      producto_id: p.id,
+      cantidad: l.querySelector('.lin-cantidad').value,
+      costo_unitario: l.querySelector('.lin-costo').value,
+      sku_proveedor: l.querySelector('.lin-sku').value.trim(),
+    });
+  }
+  const btn = document.getElementById('inv-compra-guardar');
+  btn.disabled = true;
+  try {
+    await invApi('/api/admin/inventario/compras', 'POST', {
+      proveedor_id: document.getElementById('inv-compra-proveedor').value,
+      nro_factura: document.getElementById('inv-compra-factura').value,
+      fecha: document.getElementById('inv-compra-fecha').value,
+      items,
+    });
+    invCompraModal.classList.add('hidden');
+    await cargarInventario({ reset: true });
+  } catch (err) {
+    invCompraMessage.textContent = err.message;
+    invCompraMessage.className = 'message error';
+  } finally {
+    btn.disabled = false;
+  }
+});
+document.getElementById('inv-compra-agregar').addEventListener('click', agregarLineaCompra);
+document.getElementById('inv-compra-cancelar').addEventListener('click', () => invCompraModal.classList.add('hidden'));
+
+// Lista de compras y detalle con anulación.
+const invComprasModal = document.getElementById('inv-compras-modal');
+const invComprasBody = document.getElementById('inv-compras-body');
+const invComprasState = { offset: 0 };
+
+async function cargarCompras({ reset }) {
+  if (reset) {
+    invComprasState.offset = 0;
+    invComprasBody.innerHTML = '';
+  }
+  const data = await invApi(`/api/admin/inventario/compras?offset=${invComprasState.offset}`);
+  invComprasState.offset += data.rows.length;
+  invComprasBody.insertAdjacentHTML(
+    'beforeend',
+    data.rows
+      .map(
+        (c) => `
+    <tr${c.anulada_at ? ' class="descontinuado"' : ''}>
+      <td>${esc(fmtFecha(c.fecha))}</td><td>${esc(c.proveedor)}</td><td>${esc(c.nro_factura) || '—'}</td>
+      <td class="cell-precio">${fmtMoneda(c.total)}</td>
+      <td>${c.anulada_at ? '<span class="pill">Anulada</span>' : 'Vigente'}</td>
+      <td><button type="button" class="link-btn" data-ver-compra="${c.id}">Ver</button></td>
+    </tr>`
+      )
+      .join('')
+  );
+  document.getElementById('inv-compras-mas').classList.toggle('hidden', !data.hasMore);
+}
+
+document.getElementById('btn-inv-compras').addEventListener('click', async () => {
+  invComprasModal.classList.remove('hidden');
+  try {
+    await cargarCompras({ reset: true });
+  } catch (err) {
+    await mostrarAlert(err.message);
+  }
+});
+document.getElementById('inv-compras-mas').addEventListener('click', () => cargarCompras({ reset: false }));
+document.getElementById('inv-compras-cerrar').addEventListener('click', () => invComprasModal.classList.add('hidden'));
+
+const invCompraDet = document.getElementById('inv-compra-det-modal');
+let invCompraViendo = null;
+
+async function verCompra(id) {
+  try {
+    const { compra } = await invApi(`/api/admin/inventario/compras/${id}`);
+    invCompraViendo = compra;
+    document.getElementById('inv-compra-det-titulo').textContent = `Compra #${compra.id}${compra.anulada_at ? ' (anulada)' : ''}`;
+    document.getElementById('inv-compra-det-info').textContent =
+      `${compra.proveedor} · factura ${compra.nro_factura || 's/n'} · ${fmtFecha(compra.fecha)} · total ${fmtMoneda(compra.total)}` +
+      (compra.usuario ? ` · cargada por ${compra.usuario}` : '');
+    document.getElementById('inv-compra-det-body').innerHTML = compra.items
+      .map(
+        (i) => `<tr><td class="cell-sku">${esc(i.sku)}</td><td>${esc(i.nombre)}</td><td>${esc(i.sku_proveedor) || ''}</td>
+          <td class="cell-precio">${fmtCantidad(i.cantidad)} ${esc(i.unidad_compra)}</td>
+          <td class="cell-precio">${fmtMoneda(i.costo_unitario)}</td><td class="cell-precio">${fmtMoneda(i.subtotal)}</td></tr>`
+      )
+      .join('');
+    document.getElementById('inv-compra-det-message').textContent = '';
+    document.getElementById('inv-compra-det-anular').classList.toggle('hidden', !!compra.anulada_at);
+    invCompraDet.classList.remove('hidden');
+  } catch (err) {
+    await mostrarAlert(err.message);
+  }
+}
+
+invComprasBody.addEventListener('click', (e) => {
+  const ver = e.target.closest('[data-ver-compra]');
+  if (ver) verCompra(ver.dataset.verCompra);
+});
+document.getElementById('inv-compra-det-cerrar').addEventListener('click', () => invCompraDet.classList.add('hidden'));
+document.getElementById('inv-compra-det-anular').addEventListener('click', async () => {
+  if (!(await mostrarConfirm(`¿Anular la compra #${invCompraViendo.id}? El stock vuelve a lo de antes y se recalcula el costo promedio.`))) return;
+  try {
+    await invApi(`/api/admin/inventario/compras/${invCompraViendo.id}/anular`, 'POST', {});
+    invCompraDet.classList.add('hidden');
+    await cargarCompras({ reset: true });
+    await cargarInventario({ reset: true });
+  } catch (err) {
+    const msg = document.getElementById('inv-compra-det-message');
+    msg.textContent = err.message;
+    msg.className = 'message error';
+  }
+});
+
+// --- Ajuste de stock e historial -------------------------------------------
+
+const invAjusteModal = document.getElementById('inv-ajuste-modal');
+const invAjusteMessage = document.getElementById('inv-ajuste-message');
+let invAjustando = null;
+
+function abrirAjuste(p) {
+  invAjustando = p;
+  document.getElementById('inv-ajuste-titulo').textContent = `Ajustar stock — ${p.sku}`;
+  document.getElementById('inv-ajuste-info').textContent = `${p.nombre}. Stock actual: ${fmtCantidad(p.stock)} ${p.unidad_base}. No puede quedar en negativo.`;
+  document.getElementById('inv-ajuste-cantidad').value = '';
+  document.getElementById('inv-ajuste-motivo').value = '';
+  invAjusteMessage.textContent = '';
+  invAjusteModal.classList.remove('hidden');
+  document.getElementById('inv-ajuste-cantidad').focus();
+}
+
+document.getElementById('inv-ajuste-cancelar').addEventListener('click', () => invAjusteModal.classList.add('hidden'));
+document.getElementById('inv-ajuste-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  invAjusteMessage.textContent = '';
+  invAjusteMessage.className = 'message';
+  try {
+    await invApi(`/api/admin/inventario/${invAjustando.id}/ajuste`, 'POST', {
+      cantidad: document.getElementById('inv-ajuste-cantidad').value,
+      motivo: document.getElementById('inv-ajuste-motivo').value,
+    });
+    invAjusteModal.classList.add('hidden');
+    await cargarInventario({ reset: true });
+  } catch (err) {
+    invAjusteMessage.textContent = err.message;
+    invAjusteMessage.className = 'message error';
+  }
+});
+
+const invHistModal = document.getElementById('inv-hist-modal');
+const invHistBody = document.getElementById('inv-hist-body');
+const invHistState = { producto: null, offset: 0 };
+const TIPO_MOV_LABEL = { conteo_inicial: 'Conteo inicial', compra: 'Compra', consumo: 'Consumo', ajuste: 'Ajuste', anulacion: 'Anulación' };
+
+async function cargarHistorial({ reset }) {
+  if (reset) {
+    invHistState.offset = 0;
+    invHistBody.innerHTML = '';
+  }
+  const data = await invApi(`/api/admin/inventario/${invHistState.producto.id}/movimientos?offset=${invHistState.offset}`);
+  invHistState.offset += data.rows.length;
+  invHistBody.insertAdjacentHTML(
+    'beforeend',
+    data.rows
+      .map((m) => {
+        const ref = m.ref_tipo ? ` (${esc(m.ref_tipo)} #${m.ref_id})` : '';
+        return `<tr><td>${esc(fmtFechaHora(m.created_at))}</td><td>${TIPO_MOV_LABEL[m.tipo] || esc(m.tipo)}</td>
+          <td class="cell-precio${m.cantidad < 0 ? ' stock-negativo' : ''}">${m.cantidad > 0 ? '+' : ''}${fmtCantidad(m.cantidad)}</td>
+          <td class="cell-precio">${m.costo_unitario === null ? '—' : fmtCosto(m.costo_unitario)}</td>
+          <td>${esc(m.motivo) || ''}${ref}</td><td>${esc(m.usuario) || ''}</td></tr>`;
+      })
+      .join('')
+  );
+  document.getElementById('inv-hist-mas').classList.toggle('hidden', !data.hasMore);
+}
+
+async function abrirHistorial(p) {
+  invHistState.producto = p;
+  document.getElementById('inv-hist-titulo').textContent = `Movimientos — ${p.sku} ${p.nombre} (en ${p.unidad_base})`;
+  invHistModal.classList.remove('hidden');
+  try {
+    await cargarHistorial({ reset: true });
+  } catch (err) {
+    await mostrarAlert(err.message);
+  }
+}
+document.getElementById('inv-hist-mas').addEventListener('click', () => cargarHistorial({ reset: false }));
+document.getElementById('inv-hist-cerrar').addEventListener('click', () => invHistModal.classList.add('hidden'));
+
 // --- Cableado ---------------------------------------------------------------
 
 function marcarColumnaOrdenadaInv() {
@@ -696,6 +978,7 @@ function configurarInventario() {
   document.getElementById('inventario-bulk-aplicar').addEventListener('click', aplicarBulk);
   actualizarValorBulk();
 
+  document.getElementById('btn-inv-compra').addEventListener('click', abrirCompra);
   document.getElementById('btn-nuevo-inventario').addEventListener('click', () => abrirInvModal(null));
   document.getElementById('btn-export-inventario').addEventListener('click', () => {
     window.location.href = `/api/admin/inventario/export?${invParams()}`;
@@ -704,6 +987,10 @@ function configurarInventario() {
   invBody.addEventListener('click', async (e) => {
     const editar = e.target.closest('[data-edit-inv]');
     if (editar) return abrirInvModal(editar.closest('tr')._producto);
+    const ajuste = e.target.closest('[data-ajuste-inv]');
+    if (ajuste) return abrirAjuste(ajuste.closest('tr')._producto);
+    const hist = e.target.closest('[data-hist-inv]');
+    if (hist) return abrirHistorial(hist.closest('tr')._producto);
 
     const borrar = e.target.closest('[data-delete-inv]');
     if (!borrar) return;

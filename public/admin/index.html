@@ -323,6 +323,8 @@
       </div>
       <div class="filter-bar">
         <button type="button" id="btn-nuevo-inventario">+ Nuevo producto</button>
+        <button type="button" id="btn-inv-compra">Registrar compra</button>
+        <button type="button" id="btn-inv-compras" class="secondary">Compras</button>
         <button type="button" id="btn-inv-categorias" class="secondary">Categorías</button>
         <button type="button" id="btn-inv-proveedores" class="secondary">Proveedores</button>
         <button type="button" id="btn-inv-conteo" class="secondary">Conteo inicial</button>
@@ -359,6 +361,7 @@
               <th data-sort="stock_minimo" class="col-precio">Mínimo</th>
               <th>Semáforo</th>
               <th data-sort="costo_promedio" class="col-precio">Costo prom.</th>
+              <th data-sort="ultima_compra">Última compra</th>
               <th>Proveedor(es)</th>
               <th></th>
             </tr>
@@ -996,6 +999,106 @@
       <div class="modal-actions">
         <button type="button" id="inv-conteo-cerrar" class="secondary">Cerrar</button>
         <button type="button" id="inv-conteo-subir">Cargar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Registrar compra -->
+  <div id="inv-compra-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
+      <h2>Registrar compra</h2>
+      <form id="inv-compra-form" autocomplete="off">
+        <div class="form-grid">
+          <label>Proveedor <select id="inv-compra-proveedor" required></select></label>
+          <label>N.º de factura <input type="text" id="inv-compra-factura" /></label>
+          <label>Fecha <input type="date" id="inv-compra-fecha" required /></label>
+        </div>
+        <div class="bloque-titulo" style="margin-top: 14px">Productos (cantidad en unidad de compra; costo con IGV)</div>
+        <datalist id="inv-compra-opciones"></datalist>
+        <div id="inv-compra-lineas"></div>
+        <button type="button" id="inv-compra-agregar" class="link-btn">+ Agregar producto</button>
+        <p class="modal-nota" style="text-align: right"><b>Total: <span id="inv-compra-total">S/ 0.00</span></b></p>
+        <p id="inv-compra-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="inv-compra-cancelar" class="secondary">Cancelar</button>
+          <button type="submit" id="inv-compra-guardar">Guardar compra</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Compras registradas -->
+  <div id="inv-compras-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
+      <h2>Compras</h2>
+      <div class="table-wrap modal-tabla">
+        <table>
+          <thead><tr><th>Fecha</th><th>Proveedor</th><th>Factura</th><th class="col-precio">Total</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="inv-compras-body"></tbody>
+        </table>
+      </div>
+      <button type="button" id="inv-compras-mas" class="link-btn hidden">Ver más</button>
+      <div class="modal-actions">
+        <button type="button" id="inv-compras-cerrar" class="secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detalle de compra (con anulación) -->
+  <div id="inv-compra-det-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
+      <h2 id="inv-compra-det-titulo">Compra</h2>
+      <p id="inv-compra-det-info" class="modal-nota"></p>
+      <div class="table-wrap modal-tabla">
+        <table>
+          <thead><tr><th>SKU</th><th>Producto</th><th>SKU prov.</th><th class="col-precio">Cantidad</th><th class="col-precio">Costo unit.</th><th class="col-precio">Subtotal</th></tr></thead>
+          <tbody id="inv-compra-det-body"></tbody>
+        </table>
+      </div>
+      <p id="inv-compra-det-message" class="message"></p>
+      <div class="modal-actions">
+        <button type="button" id="inv-compra-det-cerrar" class="secondary">Cerrar</button>
+        <button type="button" id="inv-compra-det-anular" class="btn-danger">Anular compra</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ajuste de stock -->
+  <div id="inv-ajuste-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="inv-ajuste-titulo">Ajustar stock</h2>
+      <p id="inv-ajuste-info" class="modal-nota"></p>
+      <form id="inv-ajuste-form" autocomplete="off">
+        <div class="form-grid">
+          <label class="form-full">Cantidad (+ suma, − resta; en unidad base)
+            <input type="number" id="inv-ajuste-cantidad" step="any" required />
+          </label>
+          <label class="form-full">Motivo (obligatorio)
+            <input type="text" id="inv-ajuste-motivo" required placeholder="Merma, rotura, conteo físico..." />
+          </label>
+        </div>
+        <p id="inv-ajuste-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="inv-ajuste-cancelar" class="secondary">Cancelar</button>
+          <button type="submit">Guardar ajuste</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Historial de movimientos de un producto -->
+  <div id="inv-hist-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
+      <h2 id="inv-hist-titulo">Movimientos</h2>
+      <div class="table-wrap modal-tabla">
+        <table>
+          <thead><tr><th>Fecha</th><th>Tipo</th><th class="col-precio">Cantidad</th><th class="col-precio">Costo unit.</th><th>Motivo / ref.</th><th>Usuario</th></tr></thead>
+          <tbody id="inv-hist-body"></tbody>
+        </table>
+      </div>
+      <button type="button" id="inv-hist-mas" class="link-btn hidden">Ver más</button>
+      <div class="modal-actions">
+        <button type="button" id="inv-hist-cerrar" class="secondary">Cerrar</button>
       </div>
     </div>
   </div>
