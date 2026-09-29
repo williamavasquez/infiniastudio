@@ -223,7 +223,7 @@ async function aplicarBulk() {
   const cantidad = invSel.todos ? invState.total : invSel.ids.size;
   const detalle = {
     categoria: 'cambiar la categoría / familia',
-    proveedor: 'reemplazar sus proveedores por el elegido (se conservan los SKU de proveedor solo si ya lo tenían)',
+    proveedor: 'sumar el proveedor elegido a los proveedores',
     minimo: valor === '' ? 'quitar el stock mínimo' : `fijar el stock mínimo en ${valor}`,
     descontinuar: 'descontinuar',
     reactivar: 'reactivar',
