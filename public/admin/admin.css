@@ -990,3 +990,86 @@ textarea:focus {
     align-items: stretch;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Inventario
+   --------------------------------------------------------------------------- */
+
+.col-check {
+  width: 32px;
+}
+
+.col-check input,
+.cell-check input {
+  width: auto;
+  accent-color: var(--brand-orange);
+}
+
+.bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  background: var(--brand-cream);
+  border: 1px solid var(--brand-beige);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Semáforo de stock: mismos colores que el de cotizaciones. */
+.semaforo-verde {
+  background: #d9f5de;
+  color: #2f6b3f;
+}
+
+.semaforo-amarillo {
+  background: #fdf0cd;
+  color: #8a6a12;
+}
+
+.semaforo-rojo {
+  background: #fbe0da;
+  color: #b23c22;
+}
+
+.stock-negativo {
+  color: #b23c22;
+  font-weight: 700;
+}
+
+tr.descontinuado td {
+  opacity: 0.55;
+}
+
+.modal-box.modal-wide {
+  max-width: 820px;
+}
+
+.modal-tabla {
+  max-height: 320px;
+  overflow: auto;
+  margin-top: 14px;
+}
+
+.modal-nota {
+  font-size: 0.85rem;
+  margin: 0 0 10px;
+}
+
+.inv-prov-fila {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.inv-prov-fila select,
+.inv-prov-fila input {
+  flex: 1;
+}
+
+.cell-hijo {
+  padding-left: 28px;
+}

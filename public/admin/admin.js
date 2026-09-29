@@ -12,6 +12,7 @@ const tabPanels = {
   usuarios: document.getElementById('tab-usuarios'),
   checkins: document.getElementById('tab-checkins'),
   servicios: document.getElementById('tab-servicios'),
+  inventario: document.getElementById('tab-inventario'),
   cotizaciones: document.getElementById('tab-cotizaciones'),
   cuentas: document.getElementById('tab-cuentas'),
 };
@@ -23,6 +24,7 @@ const TAB_SLUGS = {
   usuarios: 'usuarios',
   checkins: 'asistencias',
   servicios: 'servicios',
+  inventario: 'inventario',
   cotizaciones: 'cotizaciones',
   cuentas: 'cuentas',
 };
@@ -34,6 +36,7 @@ const TAB_PERMISOS = {
   usuarios: 'clientes',
   checkins: 'asistencias',
   servicios: 'servicios',
+  inventario: 'inventario',
   cotizaciones: 'cotizaciones',
   cuentas: 'cuentas',
 };
@@ -254,6 +257,7 @@ async function initPanel() {
   if (tienePermiso('clientes')) configurarTabla(usuariosConfig);
   if (tienePermiso('asistencias')) configurarTabla(checkinsConfig);
   if (tienePermiso('servicios')) configurarServicios();
+  if (tienePermiso('inventario')) configurarInventario();
   if (tienePermiso('cotizaciones')) configurarCotizaciones();
   if (tienePermiso('cuentas')) configurarCuentas();
 }
@@ -1939,11 +1943,12 @@ clienteForm.addEventListener('submit', async (e) => {
 // Cuentas y roles
 // ---------------------------------------------------------------------------
 
-const MODULOS_PERMISOS = ['clientes', 'asistencias', 'servicios', 'cotizaciones', 'cuentas'];
+const MODULOS_PERMISOS = ['clientes', 'asistencias', 'servicios', 'inventario', 'cotizaciones', 'cuentas'];
 const MODULO_LABEL = {
   clientes: 'Clientes',
   asistencias: 'Asistencias',
   servicios: 'Servicios',
+  inventario: 'Inventario',
   cotizaciones: 'Cotizaciones',
   cuentas: 'Cuentas',
 };

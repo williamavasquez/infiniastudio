@@ -5,6 +5,8 @@ const clientesRepo = require('./lib/clientesRepo');
 const asistenciasRepo = require('./lib/asistenciasRepo');
 const adminRepo = require('./lib/adminRepo');
 const serviciosRepo = require('./lib/serviciosRepo');
+const inventarioRepo = require('./lib/inventarioRepo');
+const proveedoresRepo = require('./lib/proveedoresRepo');
 const cotizacionesRepo = require('./lib/cotizacionesRepo');
 const { generarCotizacionPdf, nombreArchivo } = require('./lib/cotizacionPdf');
 const mailer = require('./lib/mailer');
@@ -455,6 +457,159 @@ app.delete('/api/admin/servicios/:sku', auth.requirePermission('servicios'), asy
 });
 
 // ---------------------------------------------------------------------------
+// Inventario (un único permiso `inventario`: incluye ver y editar costos)
+// ---------------------------------------------------------------------------
+
+const permisoInventario = auth.requirePermission('inventario');
+
+function parseInventarioFiltro(q) {
+  return {
+    q: q.q || null,
+    categoria_id: q.categoria_id || null,
+    familia_id: q.familia_id || null,
+    proveedor_id: q.proveedor_id || null,
+    bajo_minimo: q.bajo_minimo === '1',
+    stock_negativo: q.stock_negativo === '1',
+    descontinuados: q.descontinuados === '1',
+    sort: q.sort || null,
+    dir: q.dir || null,
+  };
+}
+
+// Envuelve un handler: 400 con el mensaje si falla (validaciones del repo).
+function manejar(fn, status = 400) {
+  return async (req, res) => {
+    try {
+      res.json(await fn(req));
+    } catch (err) {
+      res.status(status).json({ error: err.message, ...(err.errores && { errores: err.errores }) });
+    }
+  };
+}
+
+app.get('/api/admin/inventario', permisoInventario, manejar(
+  (req) => inventarioRepo.listInventario({ ...parseInventarioFiltro(req.query), offset: Number(req.query.offset) || 0, limit: 100 }),
+  500
+));
+
+app.get('/api/admin/inventario/export', permisoInventario, async (req, res) => {
+  try {
+    const rows = await inventarioRepo.listInventarioAll(parseInventarioFiltro(req.query));
+    const csv = toCsv(
+      rows.map((r) => ({
+        ...r,
+        proveedores: r.proveedores.map((p) => (p.sku_proveedor ? `${p.proveedor} (${p.sku_proveedor})` : p.proveedor)).join('; '),
+        estado: r.discontinuado_at ? 'Descontinuado' : 'Activo',
+      })),
+      [
+        { key: 'sku', label: 'SKU' },
+        { key: 'nombre', label: 'Producto' },
+        { key: 'categoria', label: 'Categoría' },
+        { key: 'familia', label: 'Familia' },
+        { key: 'stock', label: 'Stock' },
+        { key: 'unidad_base', label: 'Unidad base' },
+        { key: 'stock_minimo', label: 'Stock mínimo' },
+        { key: 'semaforo', label: 'Semáforo' },
+        { key: 'costo_promedio', label: 'Costo promedio' },
+        { key: 'proveedores', label: 'Proveedores' },
+        { key: 'estado', label: 'Estado' },
+      ]
+    );
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="inventario.csv"');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/inventario/categorias', permisoInventario, manejar(async () => ({ rows: await inventarioRepo.listCategorias() }), 500));
+app.post('/api/admin/inventario/categorias', permisoInventario, manejar(async (req) => ({ ok: true, categoria: await inventarioRepo.createCategoria(req.body || {}) })));
+app.put('/api/admin/inventario/categorias/:id', permisoInventario, async (req, res) => {
+  try {
+    const categoria = await inventarioRepo.updateCategoria(req.params.id, req.body || {});
+    if (!categoria) return res.status(404).json({ error: 'Categoría no encontrada' });
+    res.json({ ok: true, categoria });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/inventario/proveedores', permisoInventario, manejar(async () => ({ rows: await proveedoresRepo.listProveedores() }), 500));
+app.post('/api/admin/inventario/proveedores', permisoInventario, manejar(async (req) => ({ ok: true, proveedor: await proveedoresRepo.createProveedor(req.body || {}) })));
+app.put('/api/admin/inventario/proveedores/:id', permisoInventario, async (req, res) => {
+  try {
+    const proveedor = await proveedoresRepo.updateProveedor(req.params.id, req.body || {});
+    if (!proveedor) return res.status(404).json({ error: 'Proveedor no encontrado' });
+    res.json({ ok: true, proveedor });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+app.delete('/api/admin/inventario/proveedores/:id', permisoInventario, async (req, res) => {
+  try {
+    const ok = await proveedoresRepo.deleteProveedor(req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Proveedor no encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// SKU de los servicios, para elegir el SKU de un artículo de tienda.
+app.get('/api/admin/inventario/skus-servicios', permisoInventario, manejar(async () => ({ rows: await inventarioRepo.listSkusServicios() }), 500));
+
+// Próximo SKU para un insumo nuevo (solo vista previa: el definitivo se
+// genera al guardar).
+app.get('/api/admin/inventario/next-sku', permisoInventario, manejar(async (req) => ({ sku: await inventarioRepo.nextSku(Number(req.query.categoria_id) || null) })));
+
+// Plantilla y carga del conteo inicial (Excel).
+app.get('/api/admin/inventario/conteo-inicial/plantilla', permisoInventario, async (req, res) => {
+  try {
+    const wb = await inventarioRepo.plantillaConteoInicial();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="conteo-inicial.xlsx"');
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/inventario/conteo-inicial', permisoInventario, express.raw({ type: '*/*', limit: '5mb' }), manejar(async (req) => {
+  if (!Buffer.isBuffer(req.body) || !req.body.length) throw new Error('No se recibió ningún archivo');
+  return { ok: true, ...(await inventarioRepo.importarConteoInicial(req.body, req.user.id)) };
+}));
+
+app.post('/api/admin/inventario/bulk', permisoInventario, manejar(async (req) => {
+  const { ids, filtro, accion, valor } = req.body || {};
+  const actualizados = await inventarioRepo.bulk({ ids, filtro: filtro && parseInventarioFiltro(filtro), accion, valor });
+  return { ok: true, actualizados };
+}));
+
+app.post('/api/admin/inventario', permisoInventario, manejar(async (req) => ({ ok: true, producto: await inventarioRepo.createProducto(req.body || {}) })));
+
+app.put('/api/admin/inventario/:id(\\d+)', permisoInventario, async (req, res) => {
+  try {
+    const producto = await inventarioRepo.updateProducto(req.params.id, req.body || {});
+    if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
+    res.json({ ok: true, producto });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/inventario/:id(\\d+)', permisoInventario, async (req, res) => {
+  try {
+    const ok = await inventarioRepo.deleteProducto(req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Producto no encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Cotizaciones
 // ---------------------------------------------------------------------------
 
@@ -629,7 +784,7 @@ app.delete('/api/admin/asistencias/:id', auth.requirePermission('asistencias'), 
 // ...). Todas sirven el mismo SPA; el front lee el path para abrir la pestaña.
 // Los assets (/admin/admin.js, /admin/admin.css) ya los resuelve express.static
 // antes de llegar acá.
-const ADMIN_TABS = ['dashboard', 'usuarios', 'asistencias', 'servicios', 'cotizaciones', 'cuentas'];
+const ADMIN_TABS = ['dashboard', 'usuarios', 'asistencias', 'servicios', 'inventario', 'cotizaciones', 'cuentas'];
 
 app.get('/admin/:tab', (req, res, next) => {
   if (!ADMIN_TABS.includes(req.params.tab)) return next();
