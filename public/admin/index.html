@@ -275,6 +275,7 @@
         </select>
         <button type="button" id="btn-nuevo-servicio">+ Nuevo servicio</button>
         <button type="button" id="btn-export-servicios" class="secondary">Exportar CSV</button>
+        <button type="button" id="btn-guia-excel" class="secondary hidden">Guías de consumo (Excel)</button>
       </div>
 
       <div class="table-wrap" id="servicios-scroll">
@@ -547,6 +548,12 @@
             Precio máx. descuento
             <input type="number" id="servicio-precio-max" min="0" step="0.01" placeholder="0.00" />
           </label>
+        </div>
+        <div id="servicio-guia" class="hidden">
+          <div class="bloque-titulo" style="margin-top: 14px">Insumos que consume (guía de consumo, en unidad base)</div>
+          <datalist id="guia-opciones"></datalist>
+          <div id="guia-filas"></div>
+          <button type="button" id="guia-agregar" class="link-btn">+ Agregar insumo</button>
         </div>
         <p id="servicio-form-message" class="message"></p>
         <div class="modal-actions">
@@ -1100,6 +1107,62 @@
       <div class="modal-actions">
         <button type="button" id="inv-hist-cerrar" class="secondary">Cerrar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Guías de consumo por Excel -->
+  <div id="inv-guia-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2>Guías de consumo (Excel)</h2>
+      <p class="modal-nota">
+        Columnas: <b>servicio_sku</b>, <b>producto_sku</b> (SKU de inventario) y <b>cantidad</b> (en unidad base).
+        Cada servicio que aparece en el archivo queda con exactamente las filas del archivo (reemplaza su guía anterior);
+        los que no aparecen no se tocan. Es todo o nada.
+      </p>
+      <input type="file" id="inv-guia-archivo" accept=".xlsx" />
+      <div id="inv-guia-resultado" class="message"></div>
+      <div class="modal-actions">
+        <button type="button" id="inv-guia-cerrar" class="secondary">Cerrar</button>
+        <button type="button" id="inv-guia-subir">Cargar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dónde se usa un producto -->
+  <div id="inv-usos-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="inv-usos-titulo">Dónde se usa</h2>
+      <div class="table-wrap modal-tabla">
+        <table>
+          <thead><tr><th>SKU</th><th>Servicio</th><th class="col-precio">Cantidad por servicio</th></tr></thead>
+          <tbody id="inv-usos-body"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="inv-usos-cerrar" class="secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Descontinuar producto -->
+  <div id="inv-desc-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="inv-desc-titulo">Descontinuar</h2>
+      <p id="inv-desc-info" class="modal-nota"></p>
+      <form id="inv-desc-form" autocomplete="off">
+        <label class="campo-padre">
+          Reemplazado por (opcional)
+          <select id="inv-desc-reemplazo"></select>
+        </label>
+        <label class="checkbox-inline hidden" id="inv-desc-cambiar-wrap">
+          <input type="checkbox" id="inv-desc-cambiar" /> <span id="inv-desc-cambiar-texto"></span>
+        </label>
+        <p id="inv-desc-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="inv-desc-cancelar" class="secondary">Cancelar</button>
+          <button type="submit">Descontinuar</button>
+        </div>
+      </form>
     </div>
   </div>
 

@@ -138,9 +138,11 @@ function renderInventarioRow(p) {
     <td>${proveedores || '—'}</td>
     <td>
       <div class="row-actions">
+        <button type="button" class="btn-edit-row" data-usos-inv="${p.id}" title="Dónde se usa">⧉</button>
         <button type="button" class="btn-edit-row" data-ajuste-inv="${p.id}" title="Ajustar stock">±</button>
         <button type="button" class="btn-edit-row" data-hist-inv="${p.id}" title="Ver movimientos">☰</button>
         <button type="button" class="btn-edit-row" data-edit-inv="${p.id}" title="Editar producto">✎</button>
+        ${p.discontinuado_at ? '' : `<button type="button" class="btn-edit-row" data-desc-inv="${p.id}" title="Descontinuar">⊘</button>`}
         <button type="button" class="btn-delete-row" data-delete-inv="${p.id}" title="Eliminar producto">✕</button>
       </div>
     </td>
@@ -595,37 +597,46 @@ document.getElementById('btn-inv-conteo').addEventListener('click', () => {
 });
 document.getElementById('inv-conteo-cerrar').addEventListener('click', () => invConteoModal.classList.add('hidden'));
 
-document.getElementById('inv-conteo-subir').addEventListener('click', async () => {
-  const archivo = document.getElementById('inv-conteo-archivo').files[0];
+// Sube un .xlsx como cuerpo binario y muestra el resultado (o la lista de
+// errores por fila) en `resultado`. Devuelve true si se cargó.
+async function subirExcel(url, archivoInput, resultado, boton, mensajeOk) {
+  const archivo = archivoInput.files[0];
   if (!archivo) {
-    invConteoResultado.className = 'message error';
-    invConteoResultado.textContent = 'Elegí el archivo .xlsx.';
-    return;
+    resultado.className = 'message error';
+    resultado.textContent = 'Elegí el archivo .xlsx.';
+    return false;
   }
-  const btn = document.getElementById('inv-conteo-subir');
-  btn.disabled = true;
+  boton.disabled = true;
   try {
-    const res = await fetch('/api/admin/inventario/conteo-inicial', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/octet-stream' },
-      body: await archivo.arrayBuffer(),
-    });
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: await archivo.arrayBuffer() });
     const data = await res.json();
     if (!res.ok) {
-      invConteoResultado.className = 'message error';
-      invConteoResultado.innerHTML =
+      resultado.className = 'message error';
+      resultado.innerHTML =
         esc(data.error) + (data.errores ? '<ul>' + data.errores.map((x) => `<li>Fila ${x.fila}: ${esc(x.error)}</li>`).join('') + '</ul>' : '');
-      return;
+      return false;
     }
-    invConteoResultado.className = 'message';
-    invConteoResultado.textContent = `Listo: ${data.cargados} producto(s) cargados.`;
-    cargarInventario({ reset: true });
+    resultado.className = 'message';
+    resultado.textContent = mensajeOk(data);
+    return true;
   } catch (err) {
-    invConteoResultado.className = 'message error';
-    invConteoResultado.textContent = err.message;
+    resultado.className = 'message error';
+    resultado.textContent = err.message;
+    return false;
   } finally {
-    btn.disabled = false;
+    boton.disabled = false;
   }
+}
+
+document.getElementById('inv-conteo-subir').addEventListener('click', async () => {
+  const ok = await subirExcel(
+    '/api/admin/inventario/conteo-inicial',
+    document.getElementById('inv-conteo-archivo'),
+    invConteoResultado,
+    document.getElementById('inv-conteo-subir'),
+    (d) => `Listo: ${d.cargados} producto(s) cargados.`
+  );
+  if (ok) cargarInventario({ reset: true });
 });
 
 // --- Compras ----------------------------------------------------------------
@@ -907,6 +918,159 @@ async function abrirHistorial(p) {
 document.getElementById('inv-hist-mas').addEventListener('click', () => cargarHistorial({ reset: false }));
 document.getElementById('inv-hist-cerrar').addEventListener('click', () => invHistModal.classList.add('hidden'));
 
+// --- Guía de consumo (dentro del formulario de servicio) --------------------
+
+const guiaFilas = document.getElementById('guia-filas');
+let guiaOpciones = [];
+
+function agregarFilaGuia(productoId, cantidad) {
+  const p = guiaOpciones.find((x) => x.id === productoId);
+  const div = document.createElement('div');
+  div.className = 'inv-prov-fila';
+  div.innerHTML = `
+    <input type="text" class="guia-producto" list="guia-opciones" placeholder="SKU o nombre del insumo" style="flex: 3" value="${p ? esc(invEtiqueta(p)) : ''}" />
+    <input type="number" class="guia-cantidad" min="0" step="any" placeholder="Cantidad" value="${cantidad ?? ''}" />
+    <span class="lin-unidad table-status"></span>
+    <button type="button" class="btn-delete-row" title="Quitar">✕</button>
+  `;
+  const unidad = () => {
+    const sel = guiaOpciones.find((x) => invEtiqueta(x) === div.querySelector('.guia-producto').value);
+    div.querySelector('.lin-unidad').textContent = sel ? sel.unidad_base : '';
+  };
+  div.querySelector('.guia-producto').addEventListener('input', unidad);
+  div.querySelector('button').addEventListener('click', () => div.remove());
+  guiaFilas.appendChild(div);
+  unidad();
+}
+
+// Se llama al abrir el formulario de servicio (solo con permiso de inventario).
+async function abrirGuiaInsumos(servicioSku) {
+  const seccion = document.getElementById('servicio-guia');
+  seccion.classList.remove('hidden');
+  guiaFilas.innerHTML = '';
+  try {
+    const [opc, guia] = await Promise.all([
+      invApi('/api/admin/inventario/opciones'),
+      servicioSku ? invApi(`/api/admin/servicios/${encodeURIComponent(servicioSku)}/insumos`) : { rows: [] },
+    ]);
+    guiaOpciones = opc.rows;
+    document.getElementById('guia-opciones').innerHTML = guiaOpciones.map((p) => `<option value="${esc(invEtiqueta(p))}"></option>`).join('');
+    guia.rows.forEach((r) => {
+      // Un insumo ya descontinuado sigue en la guía: se agrega a las opciones para mostrarlo.
+      if (!guiaOpciones.some((p) => p.id === r.producto_id)) {
+        guiaOpciones.push({ id: r.producto_id, sku: r.sku, nombre: r.nombre, unidad_base: r.unidad_base });
+      }
+      agregarFilaGuia(r.producto_id, r.cantidad);
+    });
+  } catch (err) {
+    seccion.classList.add('hidden'); // el servicio sigue siendo editable sin la guía
+  }
+}
+
+// Reemplaza la guía del servicio por lo que hay en el formulario. Lanza si
+// falla (el servicio ya está guardado: el mensaje lo aclara).
+async function guardarGuiaInsumos(servicioSku) {
+  if (document.getElementById('servicio-guia').classList.contains('hidden')) return;
+  const items = [];
+  for (const f of guiaFilas.querySelectorAll('.inv-prov-fila')) {
+    const texto = f.querySelector('.guia-producto').value;
+    const p = guiaOpciones.find((x) => invEtiqueta(x) === texto);
+    if (!p && !texto) continue;
+    if (!p) throw new Error('Servicio guardado, pero falta elegir cada insumo de la lista de sugerencias.');
+    items.push({ producto_id: p.id, cantidad: f.querySelector('.guia-cantidad').value });
+  }
+  try {
+    await invApi(`/api/admin/servicios/${encodeURIComponent(servicioSku)}/insumos`, 'PUT', { items });
+  } catch (err) {
+    throw new Error(`Servicio guardado, pero la guía de consumo falló: ${err.message}`);
+  }
+}
+
+document.getElementById('guia-agregar').addEventListener('click', () => agregarFilaGuia(null, ''));
+
+// Excel de guías (botón en la pestaña Servicios).
+const invGuiaModal = document.getElementById('inv-guia-modal');
+document.getElementById('btn-guia-excel').addEventListener('click', () => {
+  document.getElementById('inv-guia-resultado').textContent = '';
+  document.getElementById('inv-guia-archivo').value = '';
+  invGuiaModal.classList.remove('hidden');
+});
+document.getElementById('inv-guia-cerrar').addEventListener('click', () => invGuiaModal.classList.add('hidden'));
+document.getElementById('inv-guia-subir').addEventListener('click', () =>
+  subirExcel(
+    '/api/admin/inventario/guias-consumo',
+    document.getElementById('inv-guia-archivo'),
+    document.getElementById('inv-guia-resultado'),
+    document.getElementById('inv-guia-subir'),
+    (d) => `Listo: ${d.filas} fila(s) en ${d.servicios} servicio(s).`
+  )
+);
+
+// --- Dónde se usa y descontinuar --------------------------------------------
+
+async function abrirUsos(p) {
+  document.getElementById('inv-usos-titulo').textContent = `Dónde se usa — ${p.sku} ${p.nombre}`;
+  const body = document.getElementById('inv-usos-body');
+  body.innerHTML = '';
+  document.getElementById('inv-usos-modal').classList.remove('hidden');
+  try {
+    const { rows } = await invApi(`/api/admin/inventario/${p.id}/donde-se-usa`);
+    body.innerHTML = rows.length
+      ? rows
+          .map((r) => `<tr><td class="cell-sku">${esc(r.servicio_sku)}</td><td>${esc(r.nombre)}</td><td class="cell-precio">${fmtCantidad(r.cantidad)} ${esc(p.unidad_base)}</td></tr>`)
+          .join('')
+      : '<tr><td colspan="3" class="table-status">Ningún servicio usa este producto.</td></tr>';
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="3" class="message error">${esc(err.message)}</td></tr>`;
+  }
+}
+document.getElementById('inv-usos-cerrar').addEventListener('click', () => document.getElementById('inv-usos-modal').classList.add('hidden'));
+
+const invDescModal = document.getElementById('inv-desc-modal');
+let invDescontinuando = null;
+
+async function abrirDescontinuar(p) {
+  invDescontinuando = p;
+  document.getElementById('inv-desc-titulo').textContent = `Descontinuar — ${p.sku}`;
+  document.getElementById('inv-desc-message').textContent = '';
+  document.getElementById('inv-desc-cambiar').checked = false;
+  let usos = [];
+  let opciones = [];
+  try {
+    [usos, opciones] = await Promise.all([
+      invApi(`/api/admin/inventario/${p.id}/donde-se-usa`).then((d) => d.rows),
+      invApi('/api/admin/inventario/opciones').then((d) => d.rows),
+    ]);
+  } catch (err) {
+    return mostrarAlert(err.message);
+  }
+  document.getElementById('inv-desc-info').textContent =
+    `${p.nombre}. Deja de ofrecerse en las compras y se oculta de la lista (con "Mostrar descontinuados" sigue visible). ` +
+    (usos.length ? `Lo usan ${usos.length} servicio(s).` : 'Ningún servicio lo usa.');
+  document.getElementById('inv-desc-reemplazo').innerHTML =
+    '<option value="">Sin reemplazo</option>' + opciones.filter((o) => o.id !== p.id).map((o) => `<option value="${o.id}">${esc(invEtiqueta(o))}</option>`).join('');
+  document.getElementById('inv-desc-cambiar-wrap').classList.toggle('hidden', usos.length === 0);
+  document.getElementById('inv-desc-cambiar-texto').textContent = `Poner el reemplazo en las ${usos.length} guía(s) de consumo que lo usan`;
+  invDescModal.classList.remove('hidden');
+}
+
+document.getElementById('inv-desc-cancelar').addEventListener('click', () => invDescModal.classList.add('hidden'));
+document.getElementById('inv-desc-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await invApi(`/api/admin/inventario/${invDescontinuando.id}/descontinuar`, 'POST', {
+      reemplazado_por: document.getElementById('inv-desc-reemplazo').value,
+      cambiar_insumos: document.getElementById('inv-desc-cambiar').checked,
+    });
+    invDescModal.classList.add('hidden');
+    await cargarInventario({ reset: true });
+  } catch (err) {
+    const msg = document.getElementById('inv-desc-message');
+    msg.textContent = err.message;
+    msg.className = 'message error';
+  }
+});
+
 // --- Cableado ---------------------------------------------------------------
 
 function marcarColumnaOrdenadaInv() {
@@ -979,6 +1143,7 @@ function configurarInventario() {
   actualizarValorBulk();
 
   document.getElementById('btn-inv-compra').addEventListener('click', abrirCompra);
+  document.getElementById('btn-guia-excel').classList.remove('hidden');
   document.getElementById('btn-nuevo-inventario').addEventListener('click', () => abrirInvModal(null));
   document.getElementById('btn-export-inventario').addEventListener('click', () => {
     window.location.href = `/api/admin/inventario/export?${invParams()}`;
@@ -987,6 +1152,10 @@ function configurarInventario() {
   invBody.addEventListener('click', async (e) => {
     const editar = e.target.closest('[data-edit-inv]');
     if (editar) return abrirInvModal(editar.closest('tr')._producto);
+    const usos = e.target.closest('[data-usos-inv]');
+    if (usos) return abrirUsos(usos.closest('tr')._producto);
+    const desc = e.target.closest('[data-desc-inv]');
+    if (desc) return abrirDescontinuar(desc.closest('tr')._producto);
     const ajuste = e.target.closest('[data-ajuste-inv]');
     if (ajuste) return abrirAjuste(ajuste.closest('tr')._producto);
     const hist = e.target.closest('[data-hist-inv]');

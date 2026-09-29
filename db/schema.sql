@@ -358,3 +358,19 @@ CREATE TABLE IF NOT EXISTS compra_items (
 
 CREATE INDEX IF NOT EXISTS idx_compra_items_compra ON compra_items(compra_id);
 CREATE INDEX IF NOT EXISTS idx_compra_items_producto ON compra_items(producto_id);
+
+-- ---------------------------------------------------------------------------
+-- Guía de consumo: qué productos de inventario gasta un servicio y cuánto (en
+-- unidad base). Un artículo de tienda es 1 fila con cantidad 1; una clase no
+-- tiene filas. Si el SKU del servicio cambia, la guía lo sigue (ON UPDATE
+-- CASCADE); si el servicio se borra, su guía también.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS servicio_insumos (
+  id           SERIAL PRIMARY KEY,
+  servicio_sku TEXT NOT NULL REFERENCES servicios(sku) ON UPDATE CASCADE ON DELETE CASCADE,
+  producto_id  INTEGER NOT NULL REFERENCES inventario(id) ON DELETE RESTRICT,
+  cantidad     NUMERIC(14, 4) NOT NULL CHECK (cantidad > 0),
+  UNIQUE (servicio_sku, producto_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_servicio_insumos_producto ON servicio_insumos(producto_id);

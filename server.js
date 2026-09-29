@@ -8,6 +8,7 @@ const serviciosRepo = require('./lib/serviciosRepo');
 const inventarioRepo = require('./lib/inventarioRepo');
 const proveedoresRepo = require('./lib/proveedoresRepo');
 const comprasRepo = require('./lib/comprasRepo');
+const insumosRepo = require('./lib/insumosRepo');
 const cotizacionesRepo = require('./lib/cotizacionesRepo');
 const { generarCotizacionPdf, nombreArchivo } = require('./lib/cotizacionPdf');
 const mailer = require('./lib/mailer');
@@ -624,6 +625,23 @@ app.post('/api/admin/inventario/:id(\\d+)/ajuste', permisoInventario, manejar(as
   ok: true,
   ...(await inventarioRepo.ajustarStock({ productoId: req.params.id, cantidad: (req.body || {}).cantidad, motivo: (req.body || {}).motivo, usuarioId: req.user.id })),
 })));
+
+app.get('/api/admin/inventario/:id(\\d+)/donde-se-usa', permisoInventario, manejar(async (req) => ({ rows: await insumosRepo.dondeSeUsa(req.params.id) }), 500));
+
+app.post('/api/admin/inventario/:id(\\d+)/descontinuar', permisoInventario, manejar(async (req) => {
+  const { reemplazado_por, cambiar_insumos } = req.body || {};
+  return { ok: true, ...(await insumosRepo.descontinuarProducto(Number(req.params.id), reemplazado_por, Boolean(cambiar_insumos))) };
+}));
+
+// Guía de consumo. Cuelga de /servicios/:sku pero es dato de inventario:
+// pide el permiso `inventario`.
+app.get('/api/admin/servicios/:sku/insumos', permisoInventario, manejar(async (req) => ({ rows: await insumosRepo.getInsumos(req.params.sku) }), 500));
+app.put('/api/admin/servicios/:sku/insumos', permisoInventario, manejar(async (req) => ({ ok: true, rows: await insumosRepo.setInsumos(req.params.sku, (req.body || {}).items) })));
+
+app.post('/api/admin/inventario/guias-consumo', permisoInventario, express.raw({ type: '*/*', limit: '5mb' }), manejar(async (req) => {
+  if (!Buffer.isBuffer(req.body) || !req.body.length) throw new Error('No se recibió ningún archivo');
+  return { ok: true, ...(await insumosRepo.importarGuias(req.body)) };
+}));
 
 app.post('/api/admin/inventario', permisoInventario, manejar(async (req) => ({ ok: true, producto: await inventarioRepo.createProducto(req.body || {}) })));
 

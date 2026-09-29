@@ -1061,6 +1061,7 @@ function abrirServicioModal(servicio) {
   inputPrecioRegular.value = servicio && servicio.precio_regular != null ? servicio.precio_regular : '';
   inputPrecioOferta.value = servicio && servicio.precio_oferta != null ? servicio.precio_oferta : '';
   inputPrecioMax.value = servicio && servicio.precio_max_desc != null ? servicio.precio_max_desc : '';
+  if (tienePermiso('inventario')) abrirGuiaInsumos(servicio ? servicio.sku : null);
 
   servicioModal.classList.remove('hidden');
   if (!servicio) previsualizarSku();
@@ -1123,6 +1124,14 @@ servicioForm.addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al guardar');
+
+    if (tienePermiso('inventario')) {
+      // Si la guía falla el servicio ya quedó guardado: el formulario pasa a
+      // modo edición para que reintentar no intente crearlo de nuevo.
+      servicioEditando = data.servicio.sku;
+      inputServicioSku.value = data.servicio.sku;
+      await guardarGuiaInsumos(data.servicio.sku);
+    }
 
     cerrarServicioModal();
     await cargarFacetasServicios();

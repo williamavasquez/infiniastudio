@@ -16,6 +16,7 @@ const HOY = new Date().toISOString().slice(0, 10);
 const cerca = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg}: esperado ${b}, salió ${a}`);
 
 async function producto(sku, factor = 1) {
+  await pool.query('DELETE FROM servicio_insumos WHERE producto_id IN (SELECT id FROM inventario WHERE sku = $1)', [sku]);
   await pool.query('DELETE FROM movimientos WHERE producto_id IN (SELECT id FROM inventario WHERE sku = $1)', [sku]);
   await pool.query('DELETE FROM compra_items WHERE producto_id IN (SELECT id FROM inventario WHERE sku = $1)', [sku]);
   await pool.query('DELETE FROM inventario WHERE sku = $1', [sku]);
