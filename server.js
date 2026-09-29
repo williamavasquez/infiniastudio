@@ -502,6 +502,7 @@ app.get('/api/admin/inventario/export', permisoInventario, async (req, res) => {
         ...r,
         proveedores: r.proveedores.map((p) => (p.sku_proveedor ? `${p.proveedor} (${p.sku_proveedor})` : p.proveedor)).join('; '),
         estado: r.discontinuado_at ? 'Descontinuado' : 'Activo',
+        costo_promedio: Number(r.costo_promedio || 0).toFixed(2),
       })),
       [
         { key: 'sku', label: 'SKU' },

@@ -26,9 +26,10 @@ function fmtCantidad(v) {
   return Number(v || 0).toLocaleString('es-PE', { maximumFractionDigits: 4 });
 }
 
-// El costo promedio es por unidad base (puede ser 0.0833), por eso más decimales.
+// Se muestra a 2 decimales; en la BD el promedio se guarda con más precisión
+// para que no se acumule error de redondeo compra tras compra.
 function fmtCosto(v) {
-  return `S/ ${Number(v || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+  return `S/ ${Number(v || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 async function invApi(url, method = 'GET', body) {
