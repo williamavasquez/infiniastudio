@@ -11,18 +11,18 @@ const tabPanels = {
   dashboard: document.getElementById('tab-dashboard'),
   usuarios: document.getElementById('tab-usuarios'),
   checkins: document.getElementById('tab-checkins'),
-  productos: document.getElementById('tab-productos'),
+  servicios: document.getElementById('tab-servicios'),
   cotizaciones: document.getElementById('tab-cotizaciones'),
   cuentas: document.getElementById('tab-cuentas'),
 };
 
-// Cada pestaña tiene su propia URL (/admin/usuarios, /admin/productos, ...)
+// Cada pestaña tiene su propia URL (/admin/usuarios, /admin/servicios, ...)
 // para que se pueda compartir el link y funcione el botón "atrás".
 const TAB_SLUGS = {
   dashboard: 'dashboard',
   usuarios: 'usuarios',
   checkins: 'asistencias',
-  productos: 'productos',
+  servicios: 'servicios',
   cotizaciones: 'cotizaciones',
   cuentas: 'cuentas',
 };
@@ -33,7 +33,7 @@ const SLUG_TABS = Object.fromEntries(Object.entries(TAB_SLUGS).map(([tab, slug])
 const TAB_PERMISOS = {
   usuarios: 'clientes',
   checkins: 'asistencias',
-  productos: 'productos',
+  servicios: 'servicios',
   cotizaciones: 'cotizaciones',
   cuentas: 'cuentas',
 };
@@ -103,7 +103,7 @@ function mostrarAlert(mensaje) {
   });
 }
 
-// Los nombres de producto y familia son texto libre cargado desde el Admin:
+// Los nombres de servicio y familia son texto libre cargado desde el Admin:
 // se escapan antes de meterlos en innerHTML.
 function esc(v) {
   if (v === null || v === undefined) return '';
@@ -215,7 +215,7 @@ function activarTab(tab) {
   return tab;
 }
 
-// /admin/productos -> "productos". /admin y /admin/ -> "dashboard".
+// /admin/servicios -> "servicios". /admin y /admin/ -> "dashboard".
 function tabDesdeUrl() {
   const slug = window.location.pathname.replace(/^\/admin\/?/, '').replace(/\/$/, '');
   return SLUG_TABS[slug] || 'dashboard';
@@ -253,7 +253,7 @@ async function initPanel() {
   configurarDashboard();
   if (tienePermiso('clientes')) configurarTabla(usuariosConfig);
   if (tienePermiso('asistencias')) configurarTabla(checkinsConfig);
-  if (tienePermiso('productos')) configurarProductos();
+  if (tienePermiso('servicios')) configurarServicios();
   if (tienePermiso('cotizaciones')) configurarCotizaciones();
   if (tienePermiso('cuentas')) configurarCuentas();
 }
@@ -643,62 +643,62 @@ document.getElementById('checkins-body').addEventListener('click', async (e) => 
 });
 
 // ---------------------------------------------------------------------------
-// Productos (tarifario)
+// Servicios (tarifario)
 // ---------------------------------------------------------------------------
 
-const productosQ = document.getElementById('productos-q');
-const productosCategoria = document.getElementById('productos-categoria');
-const productosFamilia = document.getElementById('productos-familia');
-const productosBody = document.getElementById('productos-body');
-const productosStatus = document.getElementById('productos-status');
-const productosScroll = document.getElementById('productos-scroll');
-const productosTabla = productosScroll.querySelector('table');
+const serviciosQ = document.getElementById('servicios-q');
+const serviciosCategoria = document.getElementById('servicios-categoria');
+const serviciosFamilia = document.getElementById('servicios-familia');
+const serviciosBody = document.getElementById('servicios-body');
+const serviciosStatus = document.getElementById('servicios-status');
+const serviciosScroll = document.getElementById('servicios-scroll');
+const serviciosTabla = serviciosScroll.querySelector('table');
 
-const productoModal = document.getElementById('producto-modal');
-const productoForm = document.getElementById('producto-form');
-const productoFormMessage = document.getElementById('producto-form-message');
-const productoGuardar = document.getElementById('producto-guardar');
-const inputProductoSku = document.getElementById('producto-sku');
-const inputProductoCategoria = document.getElementById('producto-categoria');
-const inputProductoFamilia = document.getElementById('producto-familia');
-const inputCategoriaNueva = document.getElementById('producto-categoria-nueva');
-const inputFamiliaNueva = document.getElementById('producto-familia-nueva');
-const inputProductoNombre = document.getElementById('producto-nombre');
-const inputPrecioRegular = document.getElementById('producto-precio-regular');
-const inputPrecioOferta = document.getElementById('producto-precio-oferta');
-const inputPrecioMax = document.getElementById('producto-precio-max');
-const inputProductoPadre = document.getElementById('producto-padre');
-const productoPadreWrap = document.getElementById('producto-padre-wrap');
-const productoSkuToggle = document.getElementById('producto-sku-toggle');
-const radiosTipo = document.querySelectorAll('input[name="producto-tipo"]');
+const servicioModal = document.getElementById('servicio-modal');
+const servicioForm = document.getElementById('servicio-form');
+const servicioFormMessage = document.getElementById('servicio-form-message');
+const servicioGuardar = document.getElementById('servicio-guardar');
+const inputServicioSku = document.getElementById('servicio-sku');
+const inputServicioCategoria = document.getElementById('servicio-categoria');
+const inputServicioFamilia = document.getElementById('servicio-familia');
+const inputCategoriaNueva = document.getElementById('servicio-categoria-nueva');
+const inputFamiliaNueva = document.getElementById('servicio-familia-nueva');
+const inputServicioNombre = document.getElementById('servicio-nombre');
+const inputPrecioRegular = document.getElementById('servicio-precio-regular');
+const inputPrecioOferta = document.getElementById('servicio-precio-oferta');
+const inputPrecioMax = document.getElementById('servicio-precio-max');
+const inputServicioPadre = document.getElementById('servicio-padre');
+const servicioPadreWrap = document.getElementById('servicio-padre-wrap');
+const servicioSkuToggle = document.getElementById('servicio-sku-toggle');
+const radiosTipo = document.querySelectorAll('input[name="servicio-tipo"]');
 
 // Ordenamiento por defecto: agrupado por categoría (y dentro, por familia).
-const productosState = { offset: 0, hasMore: true, loading: false, sort: 'categoria', dir: 'asc' };
+const serviciosState = { offset: 0, hasMore: true, loading: false, sort: 'categoria', dir: 'asc' };
 let facetasCache = { categorias: [], familias: [] };
-// SKU en edición, o null cuando el formulario está creando un producto nuevo.
-let productoEditando = null;
+// SKU en edición, o null cuando el formulario está creando un servicio nuevo.
+let servicioEditando = null;
 // El SKU se autogenera salvo que el usuario pida escribirlo a mano.
 let skuManual = false;
 
-function filtrosProductos() {
+function filtrosServicios() {
   return {
-    q: productosQ.value.trim(),
-    categoria: productosCategoria.value,
-    familia: productosFamilia.value,
-    sort: productosState.sort,
-    dir: productosState.dir,
+    q: serviciosQ.value.trim(),
+    categoria: serviciosCategoria.value,
+    familia: serviciosFamilia.value,
+    sort: serviciosState.sort,
+    dir: serviciosState.dir,
   };
 }
 
-function paramsProductos(extra = {}) {
-  const params = new URLSearchParams({ ...filtrosProductos(), ...extra });
+function paramsServicios(extra = {}) {
+  const params = new URLSearchParams({ ...filtrosServicios(), ...extra });
   [...params.keys()].forEach((k) => {
     if (!params.get(k)) params.delete(k);
   });
   return params;
 }
 
-function renderProductoRow(p) {
+function renderServicioRow(p) {
   const tr = document.createElement('tr');
   tr.dataset.sku = p.sku;
   const precio = (v) => {
@@ -709,50 +709,50 @@ function renderProductoRow(p) {
     <td class="cell-sku">${esc(p.sku)}</td>
     <td><span class="pill">${esc(p.categoria)}</span></td>
     <td>${esc(p.familia) || ''}</td>
-    <td class="cell-producto">${esc(p.nombre)}</td>
+    <td class="cell-servicio">${esc(p.nombre)}</td>
     ${precio(p.precio_regular)}
     ${precio(p.precio_oferta)}
     ${precio(p.precio_max_desc)}
     <td>
       <div class="row-actions">
-        <button type="button" class="btn-edit-row" data-edit-producto="${esc(p.sku)}" title="Editar producto">✎</button>
-        <button type="button" class="btn-delete-row" data-delete-producto="${esc(p.sku)}" title="Eliminar producto">✕</button>
+        <button type="button" class="btn-edit-row" data-edit-servicio="${esc(p.sku)}" title="Editar servicio">✎</button>
+        <button type="button" class="btn-delete-row" data-delete-servicio="${esc(p.sku)}" title="Eliminar servicio">✕</button>
       </div>
     </td>
   `;
   // Los datos crudos viajan con la fila para poder abrir el formulario de
   // edición sin volver a pedirlos al servidor.
-  tr._producto = p;
+  tr._servicio = p;
   return tr;
 }
 
-async function cargarProductos({ reset }) {
-  if (productosState.loading) return;
+async function cargarServicios({ reset }) {
+  if (serviciosState.loading) return;
   if (reset) {
-    productosState.offset = 0;
-    productosState.hasMore = true;
-    productosBody.innerHTML = '';
+    serviciosState.offset = 0;
+    serviciosState.hasMore = true;
+    serviciosBody.innerHTML = '';
   }
-  if (!productosState.hasMore) return;
+  if (!serviciosState.hasMore) return;
 
-  productosState.loading = true;
-  productosStatus.textContent = 'Cargando...';
+  serviciosState.loading = true;
+  serviciosStatus.textContent = 'Cargando...';
 
   try {
-    const res = await fetch(`/api/admin/productos?${paramsProductos({ offset: String(productosState.offset) })}`);
+    const res = await fetch(`/api/admin/servicios?${paramsServicios({ offset: String(serviciosState.offset) })}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al cargar');
 
-    data.rows.forEach((p) => productosBody.appendChild(renderProductoRow(p)));
-    productosState.hasMore = data.hasMore;
-    productosState.offset += data.rows.length;
-    document.getElementById('productos-stat-total').textContent = data.total;
-    productosStatus.textContent = productosState.hasMore ? '' : 'No hay más resultados.';
-    if (productosState.offset === 0) productosStatus.textContent = 'Sin resultados.';
+    data.rows.forEach((p) => serviciosBody.appendChild(renderServicioRow(p)));
+    serviciosState.hasMore = data.hasMore;
+    serviciosState.offset += data.rows.length;
+    document.getElementById('servicios-stat-total').textContent = data.total;
+    serviciosStatus.textContent = serviciosState.hasMore ? '' : 'No hay más resultados.';
+    if (serviciosState.offset === 0) serviciosStatus.textContent = 'Sin resultados.';
   } catch (err) {
-    productosStatus.textContent = 'Error al cargar.';
+    serviciosStatus.textContent = 'Error al cargar.';
   } finally {
-    productosState.loading = false;
+    serviciosState.loading = false;
   }
 }
 
@@ -778,90 +778,90 @@ function familiasDeCategoria(categoria) {
   return [...new Set(familias)].sort((a, b) => a.localeCompare(b, 'es'));
 }
 
-function refrescarFiltrosProductos() {
-  llenarOpciones(productosCategoria, facetasCache.categorias, 'Todas las categorías');
-  const familias = familiasDeCategoria(productosCategoria.value);
-  llenarOpciones(productosFamilia, familias, 'Todas las familias');
-  document.getElementById('productos-stat-categorias').textContent = facetasCache.categorias.length;
-  document.getElementById('productos-stat-familias').textContent = familias.length;
+function refrescarFiltrosServicios() {
+  llenarOpciones(serviciosCategoria, facetasCache.categorias, 'Todas las categorías');
+  const familias = familiasDeCategoria(serviciosCategoria.value);
+  llenarOpciones(serviciosFamilia, familias, 'Todas las familias');
+  document.getElementById('servicios-stat-categorias').textContent = facetasCache.categorias.length;
+  document.getElementById('servicios-stat-familias').textContent = familias.length;
 }
 
-async function cargarFacetasProductos() {
+async function cargarFacetasServicios() {
   try {
-    const res = await fetch('/api/admin/productos/facetas');
+    const res = await fetch('/api/admin/servicios/facetas');
     facetasCache = await res.json();
-    refrescarFiltrosProductos();
+    refrescarFiltrosServicios();
   } catch (err) {
     // Los filtros quedan con lo que ya tenían si falla.
   }
 }
 
 function marcarColumnaOrdenada() {
-  productosTabla.querySelectorAll('th[data-sort]').forEach((th) => {
-    th.classList.toggle('sort-asc', th.dataset.sort === productosState.sort && productosState.dir === 'asc');
-    th.classList.toggle('sort-desc', th.dataset.sort === productosState.sort && productosState.dir === 'desc');
+  serviciosTabla.querySelectorAll('th[data-sort]').forEach((th) => {
+    th.classList.toggle('sort-asc', th.dataset.sort === serviciosState.sort && serviciosState.dir === 'asc');
+    th.classList.toggle('sort-desc', th.dataset.sort === serviciosState.sort && serviciosState.dir === 'desc');
   });
 }
 
-function configurarProductos() {
-  const recargar = debounce(() => cargarProductos({ reset: true }), 400);
-  productosQ.addEventListener('input', recargar);
+function configurarServicios() {
+  const recargar = debounce(() => cargarServicios({ reset: true }), 400);
+  serviciosQ.addEventListener('input', recargar);
 
-  productosCategoria.addEventListener('change', () => {
-    llenarOpciones(productosFamilia, familiasDeCategoria(productosCategoria.value), 'Todas las familias');
-    document.getElementById('productos-stat-familias').textContent = productosFamilia.options.length - 1;
-    cargarProductos({ reset: true });
+  serviciosCategoria.addEventListener('change', () => {
+    llenarOpciones(serviciosFamilia, familiasDeCategoria(serviciosCategoria.value), 'Todas las familias');
+    document.getElementById('servicios-stat-familias').textContent = serviciosFamilia.options.length - 1;
+    cargarServicios({ reset: true });
   });
-  productosFamilia.addEventListener('change', () => cargarProductos({ reset: true }));
+  serviciosFamilia.addEventListener('change', () => cargarServicios({ reset: true }));
 
-  productosTabla.querySelectorAll('th[data-sort]').forEach((th) => {
+  serviciosTabla.querySelectorAll('th[data-sort]').forEach((th) => {
     th.addEventListener('click', () => {
       const col = th.dataset.sort;
-      if (productosState.sort === col) {
-        productosState.dir = productosState.dir === 'asc' ? 'desc' : 'asc';
+      if (serviciosState.sort === col) {
+        serviciosState.dir = serviciosState.dir === 'asc' ? 'desc' : 'asc';
       } else {
-        productosState.sort = col;
-        productosState.dir = 'asc';
+        serviciosState.sort = col;
+        serviciosState.dir = 'asc';
       }
       marcarColumnaOrdenada();
-      cargarProductos({ reset: true });
+      cargarServicios({ reset: true });
     });
   });
 
-  productosScroll.addEventListener('scroll', () => {
-    if (productosScroll.scrollTop + productosScroll.clientHeight >= productosScroll.scrollHeight - 80) {
-      cargarProductos({ reset: false });
+  serviciosScroll.addEventListener('scroll', () => {
+    if (serviciosScroll.scrollTop + serviciosScroll.clientHeight >= serviciosScroll.scrollHeight - 80) {
+      cargarServicios({ reset: false });
     }
   });
 
   marcarColumnaOrdenada();
-  cargarFacetasProductos();
-  cargarProductos({ reset: true });
+  cargarFacetasServicios();
+  cargarServicios({ reset: true });
 }
 
 // --- SKU autogenerado ------------------------------------------------------
 
-function tipoProductoSeleccionado() {
-  return document.querySelector('input[name="producto-tipo"]:checked').value;
+function tipoServicioSeleccionado() {
+  return document.querySelector('input[name="servicio-tipo"]:checked').value;
 }
 
 // Pide al servidor el próximo SKU y lo muestra como preview. El definitivo se
 // asigna al guardar, así que acá alcanza con no romper si falla.
 async function previsualizarSku() {
-  if (skuManual || productoEditando !== null) return;
+  if (skuManual || servicioEditando !== null) return;
 
-  const esSub = tipoProductoSeleccionado() === 'sub';
+  const esSub = tipoServicioSeleccionado() === 'sub';
   const params = new URLSearchParams();
   if (esSub) {
-    if (!inputProductoPadre.value) {
-      inputProductoSku.value = '';
+    if (!inputServicioPadre.value) {
+      inputServicioSku.value = '';
       return;
     }
-    params.set('padre', inputProductoPadre.value);
+    params.set('padre', inputServicioPadre.value);
   } else {
     const categoria = categoriaElegida();
     if (!categoria) {
-      inputProductoSku.value = '';
+      inputServicioSku.value = '';
       return;
     }
     params.set('categoria', categoria);
@@ -869,56 +869,56 @@ async function previsualizarSku() {
   }
 
   try {
-    const res = await fetch(`/api/admin/productos/next-sku?${params}`);
+    const res = await fetch(`/api/admin/servicios/next-sku?${params}`);
     const data = await res.json();
-    inputProductoSku.value = res.ok ? data.sku : '';
+    inputServicioSku.value = res.ok ? data.sku : '';
   } catch (err) {
-    inputProductoSku.value = '';
+    inputServicioSku.value = '';
   }
 }
 
 const previsualizarSkuDebounced = debounce(previsualizarSku, 300);
 
-// El select de padre lista todos los productos agrupados por categoría, para
-// poder elegir de cuál cuelga el sub-producto.
-const productosPorSku = new Map();
+// El select de padre lista todos los servicios agrupados por categoría, para
+// poder elegir de cuál cuelga el sub-servicio.
+const serviciosPorSku = new Map();
 
 async function cargarSelectPadres() {
   try {
-    const res = await fetch('/api/admin/productos/opciones');
+    const res = await fetch('/api/admin/servicios/opciones');
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
 
-    productosPorSku.clear();
-    const seleccionado = inputProductoPadre.value;
-    inputProductoPadre.innerHTML = '<option value="">Elegí un producto...</option>';
+    serviciosPorSku.clear();
+    const seleccionado = inputServicioPadre.value;
+    inputServicioPadre.innerHTML = '<option value="">Elegí un servicio...</option>';
 
     let grupo = null;
     data.rows.forEach((p) => {
-      productosPorSku.set(p.sku, p);
+      serviciosPorSku.set(p.sku, p);
       if (p.categoria !== grupo) {
         grupo = p.categoria;
         const og = document.createElement('optgroup');
         og.label = grupo;
-        inputProductoPadre.appendChild(og);
+        inputServicioPadre.appendChild(og);
       }
       const opt = document.createElement('option');
       opt.value = p.sku;
       opt.textContent = `${p.sku} — ${p.nombre}`;
-      inputProductoPadre.lastElementChild.appendChild(opt);
+      inputServicioPadre.lastElementChild.appendChild(opt);
     });
 
-    if (productosPorSku.has(seleccionado)) inputProductoPadre.value = seleccionado;
+    if (serviciosPorSku.has(seleccionado)) inputServicioPadre.value = seleccionado;
   } catch (err) {
-    // El formulario sigue usable para productos nuevos si esto falla.
+    // El formulario sigue usable para servicios nuevos si esto falla.
   }
 }
 
-function aplicarTipoProducto() {
-  const esSub = tipoProductoSeleccionado() === 'sub';
-  productoPadreWrap.classList.toggle('hidden', !esSub);
-  if (esSub && inputProductoPadre.value) {
-    const padre = productosPorSku.get(inputProductoPadre.value);
+function aplicarTipoServicio() {
+  const esSub = tipoServicioSeleccionado() === 'sub';
+  servicioPadreWrap.classList.toggle('hidden', !esSub);
+  if (esSub && inputServicioPadre.value) {
+    const padre = serviciosPorSku.get(inputServicioPadre.value);
     if (padre) {
       poblarCategorias(padre.categoria);
       poblarFamilias(padre.familia || '');
@@ -929,20 +929,20 @@ function aplicarTipoProducto() {
 
 function activarSkuManual(manual) {
   skuManual = manual;
-  inputProductoSku.readOnly = !manual;
-  inputProductoSku.required = manual;
-  productoSkuToggle.textContent = manual ? 'Generarlo automáticamente' : 'Escribirlo a mano';
+  inputServicioSku.readOnly = !manual;
+  inputServicioSku.required = manual;
+  servicioSkuToggle.textContent = manual ? 'Generarlo automáticamente' : 'Escribirlo a mano';
   if (manual) {
-    inputProductoSku.focus();
-    inputProductoSku.select();
+    inputServicioSku.focus();
+    inputServicioSku.select();
   } else {
     previsualizarSku();
   }
 }
 
-productoSkuToggle.addEventListener('click', () => activarSkuManual(!skuManual));
-radiosTipo.forEach((r) => r.addEventListener('change', aplicarTipoProducto));
-inputProductoPadre.addEventListener('change', aplicarTipoProducto);
+servicioSkuToggle.addEventListener('click', () => activarSkuManual(!skuManual));
+radiosTipo.forEach((r) => r.addEventListener('change', aplicarTipoServicio));
+inputServicioPadre.addEventListener('change', aplicarTipoServicio);
 
 // --- Categoría y familia del formulario ------------------------------------
 //
@@ -972,15 +972,15 @@ function valorSelectONuevo(select, inputNuevo) {
 }
 
 function categoriaElegida() {
-  return valorSelectONuevo(inputProductoCategoria, inputCategoriaNueva);
+  return valorSelectONuevo(inputServicioCategoria, inputCategoriaNueva);
 }
 
 function familiaElegida() {
-  return valorSelectONuevo(inputProductoFamilia, inputFamiliaNueva);
+  return valorSelectONuevo(inputServicioFamilia, inputFamiliaNueva);
 }
 
 function poblarCategorias(seleccionada) {
-  poblarSelect(inputProductoCategoria, facetasCache.categorias, {
+  poblarSelect(inputServicioCategoria, facetasCache.categorias, {
     etiquetaVacia: 'Elegí una categoría...',
     etiquetaNueva: '+ Nueva categoría...',
     seleccionado: seleccionada,
@@ -990,7 +990,7 @@ function poblarCategorias(seleccionada) {
 }
 
 function poblarFamilias(seleccionada) {
-  poblarSelect(inputProductoFamilia, familiasDeCategoria(categoriaElegida()), {
+  poblarSelect(inputServicioFamilia, familiasDeCategoria(categoriaElegida()), {
     etiquetaVacia: 'Sin familia',
     etiquetaNueva: '+ Nueva familia...',
     seleccionado: seleccionada,
@@ -999,8 +999,8 @@ function poblarFamilias(seleccionada) {
   inputFamiliaNueva.value = '';
 }
 
-inputProductoCategoria.addEventListener('change', () => {
-  const nueva = inputProductoCategoria.value === VALOR_NUEVA;
+inputServicioCategoria.addEventListener('change', () => {
+  const nueva = inputServicioCategoria.value === VALOR_NUEVA;
   inputCategoriaNueva.classList.toggle('hidden', !nueva);
   if (nueva) inputCategoriaNueva.focus();
   // Las familias dependen de la categoría: al cambiarla se re-arma la lista.
@@ -1013,8 +1013,8 @@ inputCategoriaNueva.addEventListener('input', () => {
   previsualizarSkuDebounced();
 });
 
-inputProductoFamilia.addEventListener('change', () => {
-  const nueva = inputProductoFamilia.value === VALOR_NUEVA;
+inputServicioFamilia.addEventListener('change', () => {
+  const nueva = inputServicioFamilia.value === VALOR_NUEVA;
   inputFamiliaNueva.classList.toggle('hidden', !nueva);
   if (nueva) inputFamiliaNueva.focus();
   previsualizarSku();
@@ -1022,94 +1022,94 @@ inputProductoFamilia.addEventListener('change', () => {
 
 inputFamiliaNueva.addEventListener('input', previsualizarSkuDebounced);
 
-// --- Formulario de producto (alta y edición) -------------------------------
+// --- Formulario de servicio (alta y edición) -------------------------------
 
-function abrirProductoModal(producto) {
-  productoEditando = producto ? producto.sku : null;
-  document.getElementById('producto-modal-title').textContent = producto ? 'Editar producto' : 'Nuevo producto';
-  productoFormMessage.textContent = '';
-  productoFormMessage.className = 'message';
+function abrirServicioModal(servicio) {
+  servicioEditando = servicio ? servicio.sku : null;
+  document.getElementById('servicio-modal-title').textContent = servicio ? 'Editar servicio' : 'Nuevo servicio';
+  servicioFormMessage.textContent = '';
+  servicioFormMessage.className = 'message';
 
   // Al editar, el SKU ya existe: se muestra editable y no se ofrece el
-  // selector de tipo (un producto no se convierte en sub-producto renombrando
+  // selector de tipo (un servicio no se convierte en sub-servicio renombrando
   // su SKU desde acá).
-  document.querySelector('.tipo-producto').classList.toggle('hidden', !!producto);
-  productoSkuToggle.classList.toggle('hidden', !!producto);
-  if (producto) {
-    productoPadreWrap.classList.add('hidden');
+  document.querySelector('.tipo-servicio').classList.toggle('hidden', !!servicio);
+  servicioSkuToggle.classList.toggle('hidden', !!servicio);
+  if (servicio) {
+    servicioPadreWrap.classList.add('hidden');
     skuManual = true;
-    inputProductoSku.readOnly = false;
-    inputProductoSku.required = true;
+    inputServicioSku.readOnly = false;
+    inputServicioSku.required = true;
   } else {
-    document.querySelector('input[name="producto-tipo"][value="nuevo"]').checked = true;
-    inputProductoPadre.value = '';
-    productoPadreWrap.classList.add('hidden');
+    document.querySelector('input[name="servicio-tipo"][value="nuevo"]').checked = true;
+    inputServicioPadre.value = '';
+    servicioPadreWrap.classList.add('hidden');
     activarSkuManual(false);
     cargarSelectPadres();
   }
 
-  inputProductoSku.value = producto ? producto.sku : '';
+  inputServicioSku.value = servicio ? servicio.sku : '';
   // En un alta se prefija la categoría que esté filtrada en la tabla, pero
   // sigue siendo cambiable desde el select.
-  poblarCategorias(producto ? producto.categoria : productosCategoria.value || '');
-  poblarFamilias(producto ? producto.familia || '' : '');
-  inputProductoNombre.value = producto ? producto.nombre : '';
-  inputPrecioRegular.value = producto && producto.precio_regular != null ? producto.precio_regular : '';
-  inputPrecioOferta.value = producto && producto.precio_oferta != null ? producto.precio_oferta : '';
-  inputPrecioMax.value = producto && producto.precio_max_desc != null ? producto.precio_max_desc : '';
+  poblarCategorias(servicio ? servicio.categoria : serviciosCategoria.value || '');
+  poblarFamilias(servicio ? servicio.familia || '' : '');
+  inputServicioNombre.value = servicio ? servicio.nombre : '';
+  inputPrecioRegular.value = servicio && servicio.precio_regular != null ? servicio.precio_regular : '';
+  inputPrecioOferta.value = servicio && servicio.precio_oferta != null ? servicio.precio_oferta : '';
+  inputPrecioMax.value = servicio && servicio.precio_max_desc != null ? servicio.precio_max_desc : '';
 
-  productoModal.classList.remove('hidden');
-  if (!producto) previsualizarSku();
-  inputProductoNombre.focus();
+  servicioModal.classList.remove('hidden');
+  if (!servicio) previsualizarSku();
+  inputServicioNombre.focus();
 }
 
-function cerrarProductoModal() {
-  productoModal.classList.add('hidden');
-  productoEditando = null;
+function cerrarServicioModal() {
+  servicioModal.classList.add('hidden');
+  servicioEditando = null;
 }
 
-document.getElementById('btn-nuevo-producto').addEventListener('click', () => abrirProductoModal(null));
-document.getElementById('producto-cancelar').addEventListener('click', cerrarProductoModal);
-productoModal.addEventListener('click', (e) => {
-  if (e.target === productoModal) cerrarProductoModal();
+document.getElementById('btn-nuevo-servicio').addEventListener('click', () => abrirServicioModal(null));
+document.getElementById('servicio-cancelar').addEventListener('click', cerrarServicioModal);
+servicioModal.addEventListener('click', (e) => {
+  if (e.target === servicioModal) cerrarServicioModal();
 });
 
-productoForm.addEventListener('submit', async (e) => {
+servicioForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  productoFormMessage.textContent = '';
-  productoFormMessage.className = 'message';
-  productoGuardar.disabled = true;
+  servicioFormMessage.textContent = '';
+  servicioFormMessage.className = 'message';
+  servicioGuardar.disabled = true;
 
-  const esSub = productoEditando === null && tipoProductoSeleccionado() === 'sub';
+  const esSub = servicioEditando === null && tipoServicioSeleccionado() === 'sub';
   const payload = {
     // Sin SKU manual, el servidor lo genera al insertar (el del preview puede
     // haber quedado tomado por otro admin en el medio).
-    sku: skuManual || productoEditando !== null ? inputProductoSku.value.trim() : '',
-    padre: esSub ? inputProductoPadre.value : null,
+    sku: skuManual || servicioEditando !== null ? inputServicioSku.value.trim() : '',
+    padre: esSub ? inputServicioPadre.value : null,
     categoria: categoriaElegida(),
     familia: familiaElegida(),
-    nombre: inputProductoNombre.value.trim(),
+    nombre: inputServicioNombre.value.trim(),
     precio_regular: inputPrecioRegular.value,
     precio_oferta: inputPrecioOferta.value,
     precio_max_desc: inputPrecioMax.value,
   };
 
   if (!payload.categoria) {
-    productoFormMessage.textContent = 'Elegí una categoría (o escribí el nombre de la nueva).';
-    productoFormMessage.className = 'message error';
-    productoGuardar.disabled = false;
+    servicioFormMessage.textContent = 'Elegí una categoría (o escribí el nombre de la nueva).';
+    servicioFormMessage.className = 'message error';
+    servicioGuardar.disabled = false;
     return;
   }
 
   if (esSub && !payload.padre) {
-    productoFormMessage.textContent = 'Elegí el producto padre.';
-    productoFormMessage.className = 'message error';
-    productoGuardar.disabled = false;
+    servicioFormMessage.textContent = 'Elegí el servicio padre.';
+    servicioFormMessage.className = 'message error';
+    servicioGuardar.disabled = false;
     return;
   }
 
-  const editando = productoEditando !== null;
-  const url = editando ? `/api/admin/productos/${encodeURIComponent(productoEditando)}` : '/api/admin/productos';
+  const editando = servicioEditando !== null;
+  const url = editando ? `/api/admin/servicios/${encodeURIComponent(servicioEditando)}` : '/api/admin/servicios';
 
   try {
     const res = await fetch(url, {
@@ -1120,49 +1120,49 @@ productoForm.addEventListener('submit', async (e) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al guardar');
 
-    cerrarProductoModal();
-    await cargarFacetasProductos();
-    await cargarProductos({ reset: true });
+    cerrarServicioModal();
+    await cargarFacetasServicios();
+    await cargarServicios({ reset: true });
   } catch (err) {
-    productoFormMessage.textContent = err.message;
-    productoFormMessage.className = 'message error';
+    servicioFormMessage.textContent = err.message;
+    servicioFormMessage.className = 'message error';
   } finally {
-    productoGuardar.disabled = false;
+    servicioGuardar.disabled = false;
   }
 });
 
-productosBody.addEventListener('click', async (e) => {
-  const editar = e.target.closest('[data-edit-producto]');
+serviciosBody.addEventListener('click', async (e) => {
+  const editar = e.target.closest('[data-edit-servicio]');
   if (editar) {
-    abrirProductoModal(editar.closest('tr')._producto);
+    abrirServicioModal(editar.closest('tr')._servicio);
     return;
   }
 
-  const borrar = e.target.closest('[data-delete-producto]');
+  const borrar = e.target.closest('[data-delete-servicio]');
   if (!borrar) return;
 
-  const sku = borrar.dataset.deleteProducto;
+  const sku = borrar.dataset.deleteServicio;
   const fila = borrar.closest('tr');
-  const confirmado = await mostrarConfirm(`¿Eliminar el producto ${sku} — ${fila._producto.nombre}?`);
+  const confirmado = await mostrarConfirm(`¿Eliminar el servicio ${sku} — ${fila._servicio.nombre}?`);
   if (!confirmado) return;
 
   borrar.disabled = true;
   try {
-    const res = await fetch(`/api/admin/productos/${encodeURIComponent(sku)}`, { method: 'DELETE' });
+    const res = await fetch(`/api/admin/servicios/${encodeURIComponent(sku)}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al eliminar');
     fila.remove();
-    const statTotal = document.getElementById('productos-stat-total');
+    const statTotal = document.getElementById('servicios-stat-total');
     statTotal.textContent = Math.max(0, Number(statTotal.textContent) - 1);
-    cargarFacetasProductos();
+    cargarFacetasServicios();
   } catch (err) {
     await mostrarAlert(err.message);
     borrar.disabled = false;
   }
 });
 
-document.getElementById('btn-export-productos').addEventListener('click', () => {
-  window.location.href = `/api/admin/productos/export?${paramsProductos()}`;
+document.getElementById('btn-export-servicios').addEventListener('click', () => {
+  window.location.href = `/api/admin/servicios/export?${paramsServicios()}`;
 });
 
 // ---------------------------------------------------------------------------
@@ -1296,7 +1296,7 @@ function configurarCotizaciones() {
     }
   });
 
-  // productosPorSku alimenta el buscador de ítems del modal, así que el
+  // serviciosPorSku alimenta el buscador de ítems del modal, así que el
   // catálogo tiene que estar cargado antes de abrir cualquier cotización.
   cargarSelectPadres();
 
@@ -1410,11 +1410,11 @@ const cotItemPrecioSelector = document.getElementById('cot-item-precio-selector'
 const cotItemPrecioNombre = document.getElementById('cot-item-precio-nombre');
 const cotItemPrecioOpciones = document.getElementById('cot-item-precio-opciones');
 
-function precioDeProducto(producto, tipo) {
+function precioDeServicio(servicio, tipo) {
   const porTipo = {
-    regular: producto.precio_regular,
-    oferta: producto.precio_oferta,
-    max_desc: producto.precio_max_desc,
+    regular: servicio.precio_regular,
+    oferta: servicio.precio_oferta,
+    max_desc: servicio.precio_max_desc,
   };
   return porTipo[tipo];
 }
@@ -1456,7 +1456,7 @@ function renderItems() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="cell-sku">${esc(item.sku) || '—'}</td>
-      <td class="cell-producto">${esc(item.nombre)}</td>
+      <td class="cell-servicio">${esc(item.nombre)}</td>
       <td class="cell-precio"><input type="number" class="input-cantidad" min="1" step="1" value="${item.cantidad}" data-campo="cantidad" data-i="${i}" /></td>
       <td class="cell-precio"><input type="number" class="input-precio" min="0" step="0.01" value="${item.precio_unitario}" data-campo="precio" data-i="${i}" /></td>
       <td class="cell-precio">${fmtMoneda(item.cantidad * item.precio_unitario)}</td>
@@ -1518,57 +1518,57 @@ cotItemsBody.addEventListener('click', (e) => {
   renderItems();
 });
 
-const buscarProductos = debounce(() => {
+const buscarServicios = debounce(() => {
   const q = cotItemBuscar.value.trim().toLowerCase();
   if (q.length < 2) {
     cotItemResultados.classList.add('hidden');
     return;
   }
-  const encontrados = [...productosPorSku.values()]
+  const encontrados = [...serviciosPorSku.values()]
     .filter((p) => p.sku.toLowerCase().includes(q) || p.nombre.toLowerCase().includes(q))
     .slice(0, 20);
 
   cotItemResultados.innerHTML = '';
   if (!encontrados.length) {
-    cotItemResultados.innerHTML = '<p class="resultado-vacio">Sin productos que coincidan.</p>';
+    cotItemResultados.innerHTML = '<p class="resultado-vacio">Sin servicios que coincidan.</p>';
   } else {
     encontrados.forEach((p) => {
       const div = document.createElement('div');
       div.className = 'resultado-item';
       div.innerHTML = `<strong>${esc(p.nombre)}</strong><div class="resultado-meta">${esc(p.sku)} · ${esc(p.categoria)}${p.familia ? ' · ' + esc(p.familia) : ''}</div>`;
-      div._producto = p;
+      div._servicio = p;
       cotItemResultados.appendChild(div);
     });
   }
   cotItemResultados.classList.remove('hidden');
 }, 250);
 
-cotItemBuscar.addEventListener('input', buscarProductos);
+cotItemBuscar.addEventListener('input', buscarServicios);
 
-// Elegir un producto NO lo agrega: primero muestra los precios disponibles
+// Elegir un servicio NO lo agrega: primero muestra los precios disponibles
 // (solo los que el rol actual puede ver) para que se elija a mano cuál usar.
 cotItemResultados.addEventListener('click', (e) => {
   const div = e.target.closest('.resultado-item');
-  if (!div || !div._producto) return;
-  abrirSelectorPrecio(div._producto);
+  if (!div || !div._servicio) return;
+  abrirSelectorPrecio(div._servicio);
 });
 
-function abrirSelectorPrecio(producto) {
+function abrirSelectorPrecio(servicio) {
   cotItemResultados.classList.add('hidden');
-  cotItemPrecioNombre.textContent = producto.nombre;
+  cotItemPrecioNombre.textContent = servicio.nombre;
 
-  const tiers = preciosVisibles().filter((t) => precioDeProducto(producto, t) !== null && precioDeProducto(producto, t) !== undefined);
+  const tiers = preciosVisibles().filter((t) => precioDeServicio(servicio, t) !== null && precioDeServicio(servicio, t) !== undefined);
 
   cotItemPrecioOpciones.innerHTML = '';
   if (!tiers.length) {
-    cotItemPrecioOpciones.innerHTML = '<p class="resultado-vacio">No tenés ningún precio habilitado para este producto.</p>';
+    cotItemPrecioOpciones.innerHTML = '<p class="resultado-vacio">No tenés ningún precio habilitado para este servicio.</p>';
   } else {
     tiers.forEach((t) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn-precio-opcion';
-      btn.innerHTML = `${esc(PRECIO_TIER_LABEL[t])}<span class="precio-opcion-monto">${fmtMoneda(precioDeProducto(producto, t))}</span>`;
-      btn.addEventListener('click', () => agregarItemConPrecio(producto, t));
+      btn.innerHTML = `${esc(PRECIO_TIER_LABEL[t])}<span class="precio-opcion-monto">${fmtMoneda(precioDeServicio(servicio, t))}</span>`;
+      btn.addEventListener('click', () => agregarItemConPrecio(servicio, t));
       cotItemPrecioOpciones.appendChild(btn);
     });
   }
@@ -1581,17 +1581,17 @@ function cerrarSelectorPrecio() {
   cotItemBuscar.focus();
 }
 
-function agregarItemConPrecio(producto, tipo) {
-  // Si el producto ya está en la lista, se suma una unidad en vez de duplicar.
-  const existente = itemsEdicion.find((it) => it.sku === producto.sku);
+function agregarItemConPrecio(servicio, tipo) {
+  // Si el servicio ya está en la lista, se suma una unidad en vez de duplicar.
+  const existente = itemsEdicion.find((it) => it.sku === servicio.sku);
   if (existente) {
     existente.cantidad += 1;
   } else {
     itemsEdicion.push({
-      sku: producto.sku,
-      nombre: producto.nombre,
+      sku: servicio.sku,
+      nombre: servicio.nombre,
       cantidad: 1,
-      precio_unitario: precioDeProducto(producto, tipo),
+      precio_unitario: precioDeServicio(servicio, tipo),
       tipo_precio: tipo,
     });
   }
@@ -1721,7 +1721,7 @@ function cerrarCotizacionModal() {
 }
 
 document.getElementById('btn-nueva-cotizacion').addEventListener('click', () => {
-  cargarSelectPadres(); // refresca productosPorSku, que alimenta el buscador de ítems
+  cargarSelectPadres(); // refresca serviciosPorSku, que alimenta el buscador de ítems
   pintarCotizacion(null);
 });
 document.getElementById('cotizacion-cancelar').addEventListener('click', cerrarCotizacionModal);
@@ -1939,11 +1939,11 @@ clienteForm.addEventListener('submit', async (e) => {
 // Cuentas y roles
 // ---------------------------------------------------------------------------
 
-const MODULOS_PERMISOS = ['clientes', 'asistencias', 'productos', 'cotizaciones', 'cuentas'];
+const MODULOS_PERMISOS = ['clientes', 'asistencias', 'servicios', 'cotizaciones', 'cuentas'];
 const MODULO_LABEL = {
   clientes: 'Clientes',
   asistencias: 'Asistencias',
-  productos: 'Productos',
+  servicios: 'Servicios',
   cotizaciones: 'Cotizaciones',
   cuentas: 'Cuentas',
 };

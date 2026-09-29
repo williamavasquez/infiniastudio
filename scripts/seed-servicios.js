@@ -1,7 +1,7 @@
 // Carga el tarifario (data/Tarifario_Infinia_Equipo_Agosto_2026.xlsx) en la
-// tabla `productos`. Cada pestaña del Excel es una categoría.
+// tabla `servicios`. Cada pestaña del Excel es una categoría.
 //
-// Sobre los SKU: el SKU es el id del producto, pero en el Excel algunos SKU
+// Sobre los SKU: el SKU es el id del servicio, pero en el Excel algunos SKU
 // del bloque capilar se repiten en más de un "Programa" (familia) con los
 // mismos precios. Esos se convierten en sub-SKU con sufijo -A, -B, -C, en el
 // orden en que aparecen en la hoja. Las filas idénticas por completo (mismo
@@ -87,16 +87,16 @@ function asignarSkus(filas) {
     crudas = crudas.concat(leerFilas(ws));
   });
 
-  const productos = asignarSkus(crudas);
-  const colapsadas = crudas.length - productos.length;
-  const sufijadas = productos.filter((p) => p.sku !== p.skuOriginal);
+  const servicios = asignarSkus(crudas);
+  const colapsadas = crudas.length - servicios.length;
+  const sufijadas = servicios.filter((p) => p.sku !== p.skuOriginal);
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    for (const p of productos) {
+    for (const p of servicios) {
       await client.query(
-        `INSERT INTO productos (sku, categoria, familia, nombre, precio_regular, precio_oferta, precio_max_desc)
+        `INSERT INTO servicios (sku, categoria, familia, nombre, precio_regular, precio_oferta, precio_max_desc)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (sku) DO UPDATE SET
            categoria = EXCLUDED.categoria,
@@ -117,12 +117,12 @@ function asignarSkus(filas) {
     client.release();
   }
 
-  const porCategoria = productos.reduce((acc, p) => {
+  const porCategoria = servicios.reduce((acc, p) => {
     acc[p.categoria] = (acc[p.categoria] || 0) + 1;
     return acc;
   }, {});
 
-  console.log(`Productos cargados: ${productos.length} (de ${crudas.length} filas del Excel)`);
+  console.log(`Servicios cargados: ${servicios.length} (de ${crudas.length} filas del Excel)`);
   Object.entries(porCategoria).forEach(([cat, n]) => console.log(`  - ${cat}: ${n}`));
   if (colapsadas) console.log(`Filas duplicadas exactas colapsadas: ${colapsadas}`);
   if (sufijadas.length) {

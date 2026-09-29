@@ -58,7 +58,7 @@
         <button type="button" class="nav-tab active" data-tab="dashboard">Dashboard</button>
         <button type="button" class="nav-tab" data-tab="usuarios">Usuarios</button>
         <button type="button" class="nav-tab" data-tab="checkins">Asistencias</button>
-        <button type="button" class="nav-tab" data-tab="productos">Productos</button>
+        <button type="button" class="nav-tab" data-tab="servicios">Servicios</button>
         <button type="button" class="nav-tab" data-tab="cotizaciones">Cotizaciones</button>
         <button type="button" class="nav-tab hidden" data-tab="cuentas" id="nav-cuentas">Cuentas</button>
       </nav>
@@ -247,52 +247,52 @@
       </div>
     </section>
 
-    <!-- Productos (tarifario) -->
-    <section id="tab-productos" class="tab-panel hidden">
+    <!-- Servicios (tarifario) -->
+    <section id="tab-servicios" class="tab-panel hidden">
       <div class="stat-cards">
         <div class="stat-card">
-          <span class="stat-label">Productos</span>
-          <span class="stat-value" id="productos-stat-total">—</span>
+          <span class="stat-label">Servicios</span>
+          <span class="stat-value" id="servicios-stat-total">—</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Categorías</span>
-          <span class="stat-value" id="productos-stat-categorias">—</span>
+          <span class="stat-value" id="servicios-stat-categorias">—</span>
         </div>
         <div class="stat-card">
           <span class="stat-label">Familias</span>
-          <span class="stat-value" id="productos-stat-familias">—</span>
+          <span class="stat-value" id="servicios-stat-familias">—</span>
         </div>
       </div>
 
       <div class="filter-bar">
-        <input type="text" id="productos-q" placeholder="Buscar por SKU, producto o familia..." class="search-input" />
-        <select id="productos-categoria">
+        <input type="text" id="servicios-q" placeholder="Buscar por SKU, servicio o familia..." class="search-input" />
+        <select id="servicios-categoria">
           <option value="">Todas las categorías</option>
         </select>
-        <select id="productos-familia">
+        <select id="servicios-familia">
           <option value="">Todas las familias</option>
         </select>
-        <button type="button" id="btn-nuevo-producto">+ Nuevo producto</button>
-        <button type="button" id="btn-export-productos" class="secondary">Exportar CSV</button>
+        <button type="button" id="btn-nuevo-servicio">+ Nuevo servicio</button>
+        <button type="button" id="btn-export-servicios" class="secondary">Exportar CSV</button>
       </div>
 
-      <div class="table-wrap" id="productos-scroll">
+      <div class="table-wrap" id="servicios-scroll">
         <table class="table-sortable">
           <thead>
             <tr>
               <th data-sort="sku">SKU</th>
               <th data-sort="categoria">Categoría</th>
               <th data-sort="familia">Familia</th>
-              <th data-sort="nombre">Producto</th>
+              <th data-sort="nombre">Servicio</th>
               <th data-sort="precio_regular" class="col-precio">Precio regular</th>
               <th data-sort="precio_oferta" class="col-precio">Precio oferta</th>
               <th data-sort="precio_max_desc" class="col-precio">Precio máx. descuento</th>
               <th></th>
             </tr>
           </thead>
-          <tbody id="productos-body"></tbody>
+          <tbody id="servicios-body"></tbody>
         </table>
-        <p id="productos-status" class="table-status"></p>
+        <p id="servicios-status" class="table-status"></p>
       </div>
     </section>
 
@@ -393,7 +393,7 @@
               <th>Rol</th>
               <th>Clientes</th>
               <th>Asistencias</th>
-              <th>Productos</th>
+              <th>Servicios</th>
               <th>Cotizaciones</th>
               <th>Cuentas</th>
               <th>Precios</th>
@@ -407,74 +407,74 @@
     </section>
   </div>
 
-  <!-- Alta / edición de producto -->
-  <div id="producto-modal" class="modal-overlay hidden">
+  <!-- Alta / edición de servicio -->
+  <div id="servicio-modal" class="modal-overlay hidden">
     <div class="modal-box modal-form" role="dialog" aria-modal="true">
-      <h2 id="producto-modal-title">Nuevo producto</h2>
-      <form id="producto-form" autocomplete="off">
-        <div class="tipo-producto">
+      <h2 id="servicio-modal-title">Nuevo servicio</h2>
+      <form id="servicio-form" autocomplete="off">
+        <div class="tipo-servicio">
           <label class="radio-opcion">
-            <input type="radio" name="producto-tipo" value="nuevo" checked />
-            Producto nuevo
+            <input type="radio" name="servicio-tipo" value="nuevo" checked />
+            Servicio nuevo
           </label>
           <label class="radio-opcion">
-            <input type="radio" name="producto-tipo" value="sub" />
-            Sub-producto de otro
+            <input type="radio" name="servicio-tipo" value="sub" />
+            Sub-servicio de otro
           </label>
         </div>
 
-        <label class="campo-padre hidden" id="producto-padre-wrap">
-          Producto padre
-          <select id="producto-padre"></select>
+        <label class="campo-padre hidden" id="servicio-padre-wrap">
+          Servicio padre
+          <select id="servicio-padre"></select>
         </label>
 
         <div class="form-grid">
           <label>
             SKU
-            <input type="text" id="producto-sku" placeholder="Se genera solo" readonly />
-            <button type="button" id="producto-sku-toggle" class="link-btn">Escribirlo a mano</button>
+            <input type="text" id="servicio-sku" placeholder="Se genera solo" readonly />
+            <button type="button" id="servicio-sku-toggle" class="link-btn">Escribirlo a mano</button>
           </label>
           <label>
             Categoría
-            <select id="producto-categoria" required></select>
+            <select id="servicio-categoria" required></select>
             <input
               type="text"
-              id="producto-categoria-nueva"
+              id="servicio-categoria-nueva"
               class="campo-nuevo hidden"
               placeholder="Nombre de la nueva categoría"
             />
           </label>
           <label class="form-full">
-            Producto
-            <input type="text" id="producto-nombre" required placeholder="Nombre del producto o servicio" />
+            Servicio
+            <input type="text" id="servicio-nombre" required placeholder="Nombre del servicio" />
           </label>
           <label class="form-full">
             Familia
-            <select id="producto-familia"></select>
+            <select id="servicio-familia"></select>
             <input
               type="text"
-              id="producto-familia-nueva"
+              id="servicio-familia-nueva"
               class="campo-nuevo hidden"
               placeholder="Nombre de la nueva familia"
             />
           </label>
           <label>
             Precio regular
-            <input type="number" id="producto-precio-regular" min="0" step="0.01" placeholder="0.00" />
+            <input type="number" id="servicio-precio-regular" min="0" step="0.01" placeholder="0.00" />
           </label>
           <label>
             Precio oferta
-            <input type="number" id="producto-precio-oferta" min="0" step="0.01" placeholder="0.00" />
+            <input type="number" id="servicio-precio-oferta" min="0" step="0.01" placeholder="0.00" />
           </label>
           <label>
             Precio máx. descuento
-            <input type="number" id="producto-precio-max" min="0" step="0.01" placeholder="0.00" />
+            <input type="number" id="servicio-precio-max" min="0" step="0.01" placeholder="0.00" />
           </label>
         </div>
-        <p id="producto-form-message" class="message"></p>
+        <p id="servicio-form-message" class="message"></p>
         <div class="modal-actions">
-          <button type="button" id="producto-cancelar" class="secondary">Cancelar</button>
-          <button type="submit" id="producto-guardar">Guardar</button>
+          <button type="button" id="servicio-cancelar" class="secondary">Cancelar</button>
+          <button type="submit" id="servicio-guardar">Guardar</button>
         </div>
       </form>
     </div>
@@ -529,7 +529,7 @@
         <div class="bloque">
           <div class="bloque-titulo">Ítems</div>
           <div class="item-picker">
-            <input type="text" id="cot-item-buscar" class="search-input" placeholder="Buscar producto del tarifario por SKU o nombre..." />
+            <input type="text" id="cot-item-buscar" class="search-input" placeholder="Buscar servicio del tarifario por SKU o nombre..." />
           </div>
           <div id="cot-item-resultados" class="resultados hidden"></div>
           <div id="cot-item-precio-selector" class="precio-selector hidden">
@@ -778,7 +778,7 @@
         </label>
         <label class="checkbox-inline"><input type="checkbox" id="rol-perm-clientes" /> Clientes</label>
         <label class="checkbox-inline"><input type="checkbox" id="rol-perm-asistencias" /> Asistencias</label>
-        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-productos" /> Productos</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-servicios" /> Servicios</label>
         <label class="checkbox-inline"><input type="checkbox" id="rol-perm-cotizaciones" /> Cotizaciones</label>
         <label class="checkbox-inline"><input type="checkbox" id="rol-perm-cuentas" /> Cuentas</label>
 

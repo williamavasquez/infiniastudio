@@ -54,11 +54,26 @@ ALTER TABLE asistencias ADD CONSTRAINT asistencias_nro_doc_fkey
   FOREIGN KEY (nro_doc) REFERENCES clientes(documento) ON DELETE CASCADE;
 
 -- ---------------------------------------------------------------------------
--- Productos (tarifario). Cada pestaña del Excel del tarifario es una
+-- Servicios (tarifario). Cada pestaña del Excel del tarifario es una
 -- "categoria" (Estética / Pilates / Tienda Infinia) y "familia" es el
--- subgrupo dentro de esa categoría. El SKU es el id del producto.
+-- subgrupo dentro de esa categoría. El SKU es el id del servicio.
+--
+-- Antes esta tabla se llamaba `productos`; "productos" ahora es el inventario.
+-- El renombre corre una sola vez (solo si `productos` existe y `servicios` no)
+-- y va ANTES del CREATE TABLE para que en una base existente no se cree una
+-- tabla vacía al lado. En una base nueva no hace nada.
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS productos (
+DO $$
+BEGIN
+  IF to_regclass('public.productos') IS NOT NULL AND to_regclass('public.servicios') IS NULL THEN
+    ALTER TABLE productos RENAME TO servicios;
+    ALTER INDEX IF EXISTS productos_pkey RENAME TO servicios_pkey;
+    ALTER INDEX IF EXISTS idx_productos_categoria RENAME TO idx_servicios_categoria;
+    ALTER INDEX IF EXISTS idx_productos_familia RENAME TO idx_servicios_familia;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS servicios (
   sku             TEXT PRIMARY KEY,
   categoria       TEXT NOT NULL,
   familia         TEXT,
@@ -70,8 +85,8 @@ CREATE TABLE IF NOT EXISTS productos (
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_productos_categoria ON productos(categoria);
-CREATE INDEX IF NOT EXISTS idx_productos_familia ON productos(familia);
+CREATE INDEX IF NOT EXISTS idx_servicios_categoria ON servicios(categoria);
+CREATE INDEX IF NOT EXISTS idx_servicios_familia ON servicios(familia);
 
 -- ---------------------------------------------------------------------------
 -- Cotizaciones. Un cliente puede tener muchas.
@@ -100,7 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_cotizaciones_updated_at ON cotizaciones(updated_a
 
 -- El nombre y el precio del ítem se congelan al cotizar: si después cambia el
 -- tarifario, la cotización que ya se le mandó al cliente no se altera. Por eso
--- `sku` no tiene FK dura contra productos (un producto puede borrarse y la
+-- `sku` no tiene FK dura contra servicios (un servicio puede borrarse y la
 -- cotización histórica tiene que sobrevivir).
 CREATE TABLE IF NOT EXISTS cotizacion_items (
   id              SERIAL PRIMARY KEY,
@@ -185,7 +200,7 @@ CREATE INDEX IF NOT EXISTS idx_cotizacion_historial_cotizacion ON cotizacion_his
 -- `es_admin` marca el rol "Admin" (dios): siempre tiene los 5 permisos en
 -- true y no se puede borrar ni editar sus permisos (ver usuariosRepo.js). Los
 -- demás roles son los que el admin crea desde /admin/cuentas, con los
--- permisos que decida por módulo — incluido "productos", que arranca sin
+-- permisos que decida por módulo — incluido "servicios", que arranca sin
 -- concederse a ningún rol nuevo pero no está bloqueado a nivel de esquema.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS roles (
@@ -217,6 +232,12 @@ CREATE INDEX IF NOT EXISTS idx_usuarios_rol ON usuarios(rol_id);
 -- ítem (algunos precios —el de máximo descuento— solo se habilitan con
 -- aprobación, y no todos los roles de ventas deberían verlos).
 INSERT INTO roles (nombre, es_admin, permisos)
-VALUES ('Admin', true, '{"clientes":true,"asistencias":true,"productos":true,"cotizaciones":true,"cuentas":true,"precios":{"regular":true,"oferta":true,"max_desc":true}}'::jsonb)
+VALUES ('Admin', true, '{"clientes":true,"asistencias":true,"servicios":true,"cotizaciones":true,"cuentas":true,"precios":{"regular":true,"oferta":true,"max_desc":true}}'::jsonb)
 ON CONFLICT (nombre) DO UPDATE SET es_admin = true,
-  permisos = '{"clientes":true,"asistencias":true,"productos":true,"cotizaciones":true,"cuentas":true,"precios":{"regular":true,"oferta":true,"max_desc":true}}'::jsonb;
+  permisos = '{"clientes":true,"asistencias":true,"servicios":true,"cotizaciones":true,"cuentas":true,"precios":{"regular":true,"oferta":true,"max_desc":true}}'::jsonb;
+
+-- El permiso `productos` (tarifario) pasó a llamarse `servicios`. Se migra la
+-- clave dentro del JSONB de cada rol; es idempotente (solo toca roles que
+-- todavía tienen la clave vieja).
+UPDATE roles SET permisos = (permisos - 'productos') || jsonb_build_object('servicios', permisos->'productos')
+WHERE permisos ? 'productos';
