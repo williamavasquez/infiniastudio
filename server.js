@@ -4,7 +4,11 @@ const express = require('express');
 const clientesRepo = require('./lib/clientesRepo');
 const asistenciasRepo = require('./lib/asistenciasRepo');
 const adminRepo = require('./lib/adminRepo');
-const productosRepo = require('./lib/productosRepo');
+const serviciosRepo = require('./lib/serviciosRepo');
+const inventarioRepo = require('./lib/inventarioRepo');
+const proveedoresRepo = require('./lib/proveedoresRepo');
+const comprasRepo = require('./lib/comprasRepo');
+const insumosRepo = require('./lib/insumosRepo');
 const cotizacionesRepo = require('./lib/cotizacionesRepo');
 const { generarCotizacionPdf, nombreArchivo } = require('./lib/cotizacionPdf');
 const mailer = require('./lib/mailer');
@@ -338,10 +342,10 @@ app.delete('/api/admin/cuentas/:id', auth.requirePermission('cuentas'), async (r
 });
 
 // ---------------------------------------------------------------------------
-// Productos (tarifario)
+// Servicios (tarifario)
 // ---------------------------------------------------------------------------
 
-function parseProductosParams(req) {
+function parseServiciosParams(req) {
   const { q, categoria, familia, sort, dir, offset } = req.query;
   return {
     q: q || null,
@@ -354,9 +358,9 @@ function parseProductosParams(req) {
   };
 }
 
-app.get('/api/admin/productos', auth.requirePermission('productos'), async (req, res) => {
+app.get('/api/admin/servicios', auth.requirePermission('servicios'), async (req, res) => {
   try {
-    const data = await productosRepo.listProductos(parseProductosParams(req));
+    const data = await serviciosRepo.listServicios(parseServiciosParams(req));
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -364,18 +368,18 @@ app.get('/api/admin/productos', auth.requirePermission('productos'), async (req,
 });
 
 // Categorías y familias existentes, para los filtros y el formulario.
-app.get('/api/admin/productos/facetas', auth.requirePermission('productos'), async (req, res) => {
+app.get('/api/admin/servicios/facetas', auth.requirePermission('servicios'), async (req, res) => {
   try {
-    res.json(await productosRepo.getFacetas());
+    res.json(await serviciosRepo.getFacetas());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Listado liviano de productos, para elegir el "producto padre".
-app.get('/api/admin/productos/opciones', auth.requirePermission('productos'), async (req, res) => {
+// Listado liviano de servicios, para elegir el "servicio padre".
+app.get('/api/admin/servicios/opciones', auth.requirePermission('servicios'), async (req, res) => {
   try {
-    res.json({ rows: await productosRepo.listOpciones() });
+    res.json({ rows: await serviciosRepo.listOpciones() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -383,11 +387,11 @@ app.get('/api/admin/productos/opciones', auth.requirePermission('productos'), as
 
 // Próximo SKU disponible, para previsualizarlo en el formulario. El SKU
 // definitivo igual se genera al guardar (acá puede quedar obsoleto si otro
-// admin crea un producto en el medio).
-app.get('/api/admin/productos/next-sku', auth.requirePermission('productos'), async (req, res) => {
+// admin crea un servicio en el medio).
+app.get('/api/admin/servicios/next-sku', auth.requirePermission('servicios'), async (req, res) => {
   try {
     const { categoria, familia, padre } = req.query;
-    const sku = await productosRepo.nextSku({
+    const sku = await serviciosRepo.nextSku({
       categoria: categoria || null,
       familia: familia || null,
       padre: padre || null,
@@ -398,10 +402,10 @@ app.get('/api/admin/productos/next-sku', auth.requirePermission('productos'), as
   }
 });
 
-app.get('/api/admin/productos/export', auth.requirePermission('productos'), async (req, res) => {
+app.get('/api/admin/servicios/export', auth.requirePermission('servicios'), async (req, res) => {
   try {
     const { q, categoria, familia, sort, dir } = req.query;
-    const rows = await productosRepo.listProductosAll({
+    const rows = await serviciosRepo.listServiciosAll({
       q: q || null,
       categoria: categoria || null,
       familia: familia || null,
@@ -412,31 +416,263 @@ app.get('/api/admin/productos/export', auth.requirePermission('productos'), asyn
       { key: 'sku', label: 'SKU' },
       { key: 'categoria', label: 'Categoría' },
       { key: 'familia', label: 'Familia' },
-      { key: 'nombre', label: 'Producto' },
+      { key: 'nombre', label: 'Servicio' },
       { key: 'precio_regular', label: 'Precio regular' },
       { key: 'precio_oferta', label: 'Precio oferta' },
       { key: 'precio_max_desc', label: 'Precio máximo descuento' },
     ]);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="productos.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="servicios.csv"');
     res.send(csv);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/admin/productos', auth.requirePermission('productos'), async (req, res) => {
+app.post('/api/admin/servicios', auth.requirePermission('servicios'), async (req, res) => {
   try {
-    const producto = await productosRepo.createProducto(req.body || {});
-    res.json({ ok: true, producto });
+    const servicio = await serviciosRepo.createServicio(req.body || {});
+    res.json({ ok: true, servicio });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-app.put('/api/admin/productos/:sku', auth.requirePermission('productos'), async (req, res) => {
+app.put('/api/admin/servicios/:sku', auth.requirePermission('servicios'), async (req, res) => {
   try {
-    const producto = await productosRepo.updateProducto(req.params.sku, req.body || {});
+    const servicio = await serviciosRepo.updateServicio(req.params.sku, req.body || {});
+    if (!servicio) return res.status(404).json({ error: 'Servicio no encontrado' });
+    res.json({ ok: true, servicio });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/servicios/:sku', auth.requirePermission('servicios'), async (req, res) => {
+  try {
+    const ok = await serviciosRepo.deleteServicio(req.params.sku);
+    if (!ok) return res.status(404).json({ error: 'Servicio no encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Inventario (un único permiso `inventario`: incluye ver y editar costos)
+// ---------------------------------------------------------------------------
+
+const permisoInventario = auth.requirePermission('inventario');
+
+function parseInventarioFiltro(q) {
+  return {
+    q: q.q || null,
+    categoria_id: q.categoria_id || null,
+    familia_id: q.familia_id || null,
+    proveedor_id: q.proveedor_id || null,
+    bajo_minimo: q.bajo_minimo === '1',
+    stock_negativo: q.stock_negativo === '1',
+    descontinuados: q.descontinuados === '1',
+    sort: q.sort || null,
+    dir: q.dir || null,
+  };
+}
+
+// Envuelve un handler: 400 con el mensaje si falla (validaciones del repo).
+function manejar(fn, status = 400) {
+  return async (req, res) => {
+    try {
+      res.json(await fn(req));
+    } catch (err) {
+      res.status(status).json({ error: err.message, ...(err.errores && { errores: err.errores }) });
+    }
+  };
+}
+
+app.get('/api/admin/inventario', permisoInventario, manejar(
+  (req) => inventarioRepo.listInventario({ ...parseInventarioFiltro(req.query), offset: Number(req.query.offset) || 0, limit: 100 }),
+  500
+));
+
+app.get('/api/admin/inventario/export', permisoInventario, async (req, res) => {
+  try {
+    const rows = await inventarioRepo.listInventarioAll(parseInventarioFiltro(req.query));
+    const csv = toCsv(
+      rows.map((r) => ({
+        ...r,
+        proveedores: r.proveedores.map((p) => (p.sku_proveedor ? `${p.proveedor} (${p.sku_proveedor})` : p.proveedor)).join('; '),
+        estado: r.discontinuado_at ? 'Descontinuado' : 'Activo',
+      })),
+      [
+        { key: 'sku', label: 'SKU' },
+        { key: 'nombre', label: 'Producto' },
+        { key: 'categoria', label: 'Categoría' },
+        { key: 'familia', label: 'Familia' },
+        { key: 'stock', label: 'Stock' },
+        { key: 'unidad_base', label: 'Unidad base' },
+        { key: 'stock_minimo', label: 'Stock mínimo' },
+        { key: 'semaforo', label: 'Semáforo' },
+        { key: 'costo_promedio', label: 'Costo promedio' },
+        { key: 'ultima_compra', label: 'Última compra' },
+        { key: 'proveedores', label: 'Proveedores' },
+        { key: 'estado', label: 'Estado' },
+      ]
+    );
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="inventario.csv"');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/inventario/categorias', permisoInventario, manejar(async () => ({ rows: await inventarioRepo.listCategorias() }), 500));
+app.post('/api/admin/inventario/categorias', permisoInventario, manejar(async (req) => ({ ok: true, categoria: await inventarioRepo.createCategoria(req.body || {}) })));
+app.put('/api/admin/inventario/categorias/:id', permisoInventario, async (req, res) => {
+  try {
+    const categoria = await inventarioRepo.updateCategoria(req.params.id, req.body || {});
+    if (!categoria) return res.status(404).json({ error: 'Categoría no encontrada' });
+    res.json({ ok: true, categoria });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/admin/inventario/proveedores', permisoInventario, manejar(async () => ({ rows: await proveedoresRepo.listProveedores() }), 500));
+app.post('/api/admin/inventario/proveedores', permisoInventario, manejar(async (req) => ({ ok: true, proveedor: await proveedoresRepo.createProveedor(req.body || {}) })));
+app.put('/api/admin/inventario/proveedores/:id', permisoInventario, async (req, res) => {
+  try {
+    const proveedor = await proveedoresRepo.updateProveedor(req.params.id, req.body || {});
+    if (!proveedor) return res.status(404).json({ error: 'Proveedor no encontrado' });
+    res.json({ ok: true, proveedor });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+app.delete('/api/admin/inventario/proveedores/:id', permisoInventario, async (req, res) => {
+  try {
+    const ok = await proveedoresRepo.deleteProveedor(req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Proveedor no encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// SKU de los servicios, para elegir el SKU de un artículo de tienda.
+app.get('/api/admin/inventario/skus-servicios', permisoInventario, manejar(async () => ({ rows: await inventarioRepo.listSkusServicios() }), 500));
+
+// Próximo SKU para un insumo nuevo (solo vista previa: el definitivo se
+// genera al guardar).
+app.get('/api/admin/inventario/next-sku', permisoInventario, manejar(async (req) => ({ sku: await inventarioRepo.nextSku(Number(req.query.categoria_id) || null) })));
+
+// Plantilla y carga del conteo inicial (Excel).
+app.get('/api/admin/inventario/conteo-inicial/plantilla', permisoInventario, async (req, res) => {
+  try {
+    const wb = await inventarioRepo.plantillaConteoInicial();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="conteo-inicial.xlsx"');
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/inventario/conteo-inicial', permisoInventario, express.raw({ type: '*/*', limit: '5mb' }), manejar(async (req) => {
+  if (!Buffer.isBuffer(req.body) || !req.body.length) throw new Error('No se recibió ningún archivo');
+  return { ok: true, ...(await inventarioRepo.importarConteoInicial(req.body, req.user.id)) };
+}));
+
+app.post('/api/admin/inventario/bulk', permisoInventario, manejar(async (req) => {
+  const { ids, filtro, accion, valor } = req.body || {};
+  const actualizados = await inventarioRepo.bulk({ ids, filtro: filtro && parseInventarioFiltro(filtro), accion, valor });
+  return { ok: true, actualizados };
+}));
+
+// Productos activos con lo necesario para armar las líneas de una compra.
+app.get('/api/admin/inventario/opciones', permisoInventario, manejar(async () => ({ rows: await inventarioRepo.listOpciones() }), 500));
+
+app.get('/api/admin/inventario/compras', permisoInventario, manejar(
+  (req) => comprasRepo.listCompras({ offset: Number(req.query.offset) || 0 }),
+  500
+));
+
+app.get('/api/admin/inventario/compras/:id(\\d+)', permisoInventario, async (req, res) => {
+  try {
+    const compra = await comprasRepo.getCompra(req.params.id);
+    if (!compra) return res.status(404).json({ error: 'Compra no encontrada' });
+    res.json({ compra });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/inventario/compras', permisoInventario, manejar(
+  async (req) => ({ ok: true, compra: await comprasRepo.createCompra(req.body || {}, req.user.id) })
+));
+
+app.post('/api/admin/inventario/compras/:id(\\d+)/anular', permisoInventario, manejar(
+  async (req) => ({ ok: true, compra: await comprasRepo.anularCompra(req.params.id, req.user.id) })
+));
+
+app.get('/api/admin/inventario/:id(\\d+)/movimientos', permisoInventario, manejar(
+  (req) => inventarioRepo.listMovimientos(req.params.id, { offset: Number(req.query.offset) || 0 }),
+  500
+));
+
+app.post('/api/admin/inventario/:id(\\d+)/ajuste', permisoInventario, manejar(async (req) => ({
+  ok: true,
+  ...(await inventarioRepo.ajustarStock({ productoId: req.params.id, cantidad: (req.body || {}).cantidad, motivo: (req.body || {}).motivo, usuarioId: req.user.id })),
+})));
+
+app.get('/api/admin/inventario/:id(\\d+)/donde-se-usa', permisoInventario, manejar(async (req) => ({ rows: await insumosRepo.dondeSeUsa(req.params.id) }), 500));
+
+app.post('/api/admin/inventario/:id(\\d+)/descontinuar', permisoInventario, manejar(async (req) => {
+  const { reemplazado_por, cambiar_insumos } = req.body || {};
+  return { ok: true, ...(await insumosRepo.descontinuarProducto(Number(req.params.id), reemplazado_por, Boolean(cambiar_insumos))) };
+}));
+
+// Guía de consumo. Cuelga de /servicios/:sku pero es dato de inventario:
+// pide el permiso `inventario`.
+app.get('/api/admin/servicios/:sku/insumos', permisoInventario, manejar(async (req) => ({ rows: await insumosRepo.getInsumos(req.params.sku) }), 500));
+app.put('/api/admin/servicios/:sku/insumos', permisoInventario, manejar(async (req) => ({ ok: true, rows: await insumosRepo.setInsumos(req.params.sku, (req.body || {}).items) })));
+
+app.post('/api/admin/inventario/guias-consumo', permisoInventario, express.raw({ type: '*/*', limit: '5mb' }), manejar(async (req) => {
+  if (!Buffer.isBuffer(req.body) || !req.body.length) throw new Error('No se recibió ningún archivo');
+  return { ok: true, ...(await insumosRepo.importarGuias(req.body)) };
+}));
+
+app.get('/api/admin/inventario/reposicion', permisoInventario, manejar(async () => ({ grupos: await inventarioRepo.listReposicion() }), 500));
+
+app.get('/api/admin/inventario/reposicion/export', permisoInventario, async (req, res) => {
+  try {
+    const grupos = await inventarioRepo.listReposicion();
+    const filas = grupos.flatMap((g) => g.items.map((i) => ({ ...i, proveedor: g.proveedor })));
+    const csv = toCsv(filas, [
+      { key: 'proveedor', label: 'Proveedor' },
+      { key: 'sku', label: 'SKU' },
+      { key: 'nombre', label: 'Producto' },
+      { key: 'sku_proveedor', label: 'SKU proveedor' },
+      { key: 'stock', label: 'Stock' },
+      { key: 'stock_minimo', label: 'Stock mínimo' },
+      { key: 'unidad_base', label: 'Unidad base' },
+      { key: 'sugerido', label: 'Cantidad sugerida' },
+      { key: 'unidad_compra', label: 'Unidad de compra' },
+    ]);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="reposicion.csv"');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/inventario', permisoInventario, manejar(async (req) => ({ ok: true, producto: await inventarioRepo.createProducto(req.body || {}) })));
+
+app.put('/api/admin/inventario/:id(\\d+)', permisoInventario, async (req, res) => {
+  try {
+    const producto = await inventarioRepo.updateProducto(req.params.id, req.body || {});
     if (!producto) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json({ ok: true, producto });
   } catch (err) {
@@ -444,13 +680,13 @@ app.put('/api/admin/productos/:sku', auth.requirePermission('productos'), async 
   }
 });
 
-app.delete('/api/admin/productos/:sku', auth.requirePermission('productos'), async (req, res) => {
+app.delete('/api/admin/inventario/:id(\\d+)', permisoInventario, async (req, res) => {
   try {
-    const ok = await productosRepo.deleteProducto(req.params.sku);
+    const ok = await inventarioRepo.deleteProducto(req.params.id);
     if (!ok) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(400).json({ error: err.message });
   }
 });
 
@@ -625,11 +861,11 @@ app.delete('/api/admin/asistencias/:id', auth.requirePermission('asistencias'), 
   }
 });
 
-// Cada pestaña del panel tiene su propia URL (/admin/productos, /admin/usuarios,
+// Cada pestaña del panel tiene su propia URL (/admin/servicios, /admin/usuarios,
 // ...). Todas sirven el mismo SPA; el front lee el path para abrir la pestaña.
 // Los assets (/admin/admin.js, /admin/admin.css) ya los resuelve express.static
 // antes de llegar acá.
-const ADMIN_TABS = ['dashboard', 'usuarios', 'asistencias', 'productos', 'cotizaciones', 'cuentas'];
+const ADMIN_TABS = ['dashboard', 'usuarios', 'asistencias', 'servicios', 'inventario', 'cotizaciones', 'cuentas'];
 
 app.get('/admin/:tab', (req, res, next) => {
   if (!ADMIN_TABS.includes(req.params.tab)) return next();
