@@ -6,7 +6,7 @@ const loginMessage = document.getElementById('login-message');
 const adminPanel = document.getElementById('admin-panel');
 const btnLogout = document.getElementById('btn-logout');
 
-const navTabs = document.querySelectorAll('.nav-tab');
+const navTabs = document.querySelectorAll('.admin-nav .nav-tab');
 const tabPanels = {
   dashboard: document.getElementById('tab-dashboard'),
   usuarios: document.getElementById('tab-usuarios'),

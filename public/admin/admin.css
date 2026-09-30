@@ -1098,3 +1098,56 @@ tr.descontinuado td {
 tr.fila-clic {
   cursor: pointer;
 }
+
+/* Inventario: barra lateral con vistas (productos, compras, reposición...) */
+.inv-layout {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.inv-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: sticky;
+  top: 12px;
+}
+
+.inv-sidebar .nav-tab {
+  text-align: left;
+  padding: 8px 10px;
+}
+
+/* Inventario usa todo el ancho de la ventana y tablas más compactas */
+.admin-panel:has(#tab-inventario:not(.hidden)) {
+  max-width: none;
+}
+
+.inv-main thead th,
+.inv-main tbody td {
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+
+.inv-main .filter-bar {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.inv-main h2:first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 760px) {
+  .inv-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .inv-sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    position: static;
+  }
+}

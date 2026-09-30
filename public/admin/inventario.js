@@ -171,6 +171,7 @@ async function cargarInventario({ reset }) {
     invState.offset += data.rows.length;
     invState.total = data.total;
     document.getElementById('inventario-stat-total').textContent = data.total;
+    document.getElementById('inventario-stat-valor').textContent = fmtMoneda(data.valorTotal);
     invStatus.textContent = invState.hasMore ? '' : 'No hay más resultados.';
     if (invState.offset === 0) invStatus.textContent = 'Sin resultados.';
     actualizarBarraBulk();
@@ -413,7 +414,6 @@ invForm.addEventListener('submit', async (e) => {
 
 // --- Categorías -------------------------------------------------------------
 
-const invCatModal = document.getElementById('inv-cat-modal');
 const invCatBody = document.getElementById('inv-cat-body');
 const invCatMessage = document.getElementById('inv-cat-message');
 
@@ -441,16 +441,6 @@ async function refrescarCategorias() {
   await cargarCatalogoInventario();
   renderCategorias();
 }
-
-document.getElementById('btn-inv-categorias').addEventListener('click', () => {
-  invCatMessage.textContent = '';
-  renderCategorias();
-  invCatModal.classList.remove('hidden');
-});
-document.getElementById('inv-cat-cerrar').addEventListener('click', () => {
-  invCatModal.classList.add('hidden');
-  cargarInventario({ reset: true });
-});
 
 document.getElementById('inv-cat-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -496,7 +486,6 @@ invCatBody.addEventListener('click', async (e) => {
 
 // --- Proveedores ------------------------------------------------------------
 
-const invProvModal = document.getElementById('inv-prov-modal');
 const invProvForm = document.getElementById('inv-prov-form');
 const invProvBody = document.getElementById('inv-prov-body');
 const invProvMessage = document.getElementById('inv-prov-message');
@@ -529,16 +518,6 @@ function editarProveedor(p) {
   document.getElementById('inv-prov-nuevo').classList.toggle('hidden', !p);
 }
 
-document.getElementById('btn-inv-proveedores').addEventListener('click', () => {
-  invProvMessage.textContent = '';
-  editarProveedor(null);
-  renderProveedores();
-  invProvModal.classList.remove('hidden');
-});
-document.getElementById('inv-prov-cerrar').addEventListener('click', () => {
-  invProvModal.classList.add('hidden');
-  cargarInventario({ reset: true });
-});
 document.getElementById('inv-prov-nuevo').addEventListener('click', () => editarProveedor(null));
 
 invProvForm.addEventListener('submit', async (e) => {
@@ -760,7 +739,6 @@ document.getElementById('inv-compra-agregar').addEventListener('click', agregarL
 document.getElementById('inv-compra-cancelar').addEventListener('click', () => invCompraModal.classList.add('hidden'));
 
 // Lista de compras y detalle con anulación.
-const invComprasModal = document.getElementById('inv-compras-modal');
 const invComprasBody = document.getElementById('inv-compras-body');
 const invComprasState = { offset: 0 };
 
@@ -788,16 +766,7 @@ async function cargarCompras({ reset }) {
   document.getElementById('inv-compras-mas').classList.toggle('hidden', !data.hasMore);
 }
 
-document.getElementById('btn-inv-compras').addEventListener('click', async () => {
-  invComprasModal.classList.remove('hidden');
-  try {
-    await cargarCompras({ reset: true });
-  } catch (err) {
-    await mostrarAlert(err.message);
-  }
-});
 document.getElementById('inv-compras-mas').addEventListener('click', () => cargarCompras({ reset: false }));
-document.getElementById('inv-compras-cerrar').addEventListener('click', () => invComprasModal.classList.add('hidden'));
 
 const invCompraDet = document.getElementById('inv-compra-det-modal');
 let invCompraViendo = null;
@@ -1117,10 +1086,9 @@ document.getElementById('inv-desc-form').addEventListener('submit', async (e) =>
 
 // --- Reposición -------------------------------------------------------------
 
-async function abrirReposicion() {
+async function cargarReposicion() {
   const cont = document.getElementById('inv-repo-contenido');
   cont.textContent = 'Cargando...';
-  document.getElementById('inv-repo-modal').classList.remove('hidden');
   try {
     const { grupos } = await invApi('/api/admin/inventario/reposicion');
     cont.innerHTML = grupos.length
@@ -1146,10 +1114,38 @@ async function abrirReposicion() {
     cont.textContent = err.message;
   }
 }
-document.getElementById('btn-inv-reposicion').addEventListener('click', abrirReposicion);
-document.getElementById('inv-repo-cerrar').addEventListener('click', () => document.getElementById('inv-repo-modal').classList.add('hidden'));
 document.getElementById('inv-repo-export').addEventListener('click', () => {
   window.location.href = '/api/admin/inventario/reposicion/export';
+});
+
+// --- Barra lateral: cada vista recarga lo suyo al entrar ---------------------
+
+const INV_VISTAS = {
+  productos: () => cargarInventario({ reset: true }), // categorías/proveedores pudieron cambiar
+  compras: () => cargarCompras({ reset: true }),
+  reposicion: cargarReposicion,
+  categorias: () => {
+    invCatMessage.textContent = '';
+    renderCategorias();
+  },
+  proveedores: () => {
+    invProvMessage.textContent = '';
+    editarProveedor(null);
+    renderProveedores();
+  },
+};
+
+document.getElementById('inv-sidebar').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-inv-vista]');
+  if (!btn) return;
+  const vista = btn.dataset.invVista;
+  document.querySelectorAll('[data-inv-vista]').forEach((b) => b.classList.toggle('active', b === btn));
+  Object.keys(INV_VISTAS).forEach((v) => document.getElementById(`inv-vista-${v}`).classList.toggle('hidden', v !== vista));
+  try {
+    await INV_VISTAS[vista]();
+  } catch (err) {
+    await mostrarAlert(err.message);
+  }
 });
 
 // --- Cableado ---------------------------------------------------------------
