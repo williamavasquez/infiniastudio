@@ -27,8 +27,12 @@
     <h1>Panel de Administración</h1>
     <form id="login-form" autocomplete="off">
       <label>
+        Usuario
+        <input type="text" id="login-username" autocomplete="off" autofocus />
+      </label>
+      <label>
         Contraseña
-        <input type="password" id="login-password" autocomplete="off" autofocus />
+        <input type="password" id="login-password" autocomplete="off" />
       </label>
       <button type="submit">Ingresar</button>
       <p id="login-message" class="message"></p>
@@ -54,6 +58,10 @@
         <button type="button" class="nav-tab active" data-tab="dashboard">Dashboard</button>
         <button type="button" class="nav-tab" data-tab="usuarios">Usuarios</button>
         <button type="button" class="nav-tab" data-tab="checkins">Asistencias</button>
+        <button type="button" class="nav-tab" data-tab="servicios">Servicios</button>
+        <button type="button" class="nav-tab" data-tab="inventario">Inventario</button>
+        <button type="button" class="nav-tab" data-tab="cotizaciones">Cotizaciones</button>
+        <button type="button" class="nav-tab hidden" data-tab="cuentas" id="nav-cuentas">Cuentas</button>
       </nav>
       <button type="button" id="btn-logout" class="secondary">Salir</button>
     </header>
@@ -239,7 +247,966 @@
         <p id="checkins-status" class="table-status"></p>
       </div>
     </section>
+
+    <!-- Servicios (tarifario) -->
+    <section id="tab-servicios" class="tab-panel hidden">
+      <div class="stat-cards">
+        <div class="stat-card">
+          <span class="stat-label">Servicios</span>
+          <span class="stat-value" id="servicios-stat-total">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Categorías</span>
+          <span class="stat-value" id="servicios-stat-categorias">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Familias</span>
+          <span class="stat-value" id="servicios-stat-familias">—</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input type="text" id="servicios-q" placeholder="Buscar por SKU, servicio o familia..." class="search-input" />
+        <select id="servicios-categoria">
+          <option value="">Todas las categorías</option>
+        </select>
+        <select id="servicios-familia">
+          <option value="">Todas las familias</option>
+        </select>
+        <button type="button" id="btn-nuevo-servicio">+ Nuevo servicio</button>
+        <button type="button" id="btn-export-servicios" class="secondary">Exportar CSV</button>
+        <button type="button" id="btn-guia-excel" class="secondary hidden">Guías de consumo (Excel)</button>
+      </div>
+
+      <div class="table-wrap" id="servicios-scroll">
+        <table class="table-sortable">
+          <thead>
+            <tr>
+              <th data-sort="sku">SKU</th>
+              <th data-sort="categoria">Categoría</th>
+              <th data-sort="familia">Familia</th>
+              <th data-sort="nombre">Servicio</th>
+              <th data-sort="precio_regular" class="col-precio">Precio regular</th>
+              <th data-sort="precio_oferta" class="col-precio">Precio oferta</th>
+              <th data-sort="precio_max_desc" class="col-precio">Precio máx. descuento</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="servicios-body"></tbody>
+        </table>
+        <p id="servicios-status" class="table-status"></p>
+      </div>
+    </section>
+
+    <!-- Inventario -->
+    <section id="tab-inventario" class="tab-panel hidden">
+      <div class="inv-layout">
+      <nav class="inv-sidebar" id="inv-sidebar">
+        <button type="button" class="nav-tab active" data-inv-vista="productos">Productos</button>
+        <button type="button" class="nav-tab" data-inv-vista="compras">Compras</button>
+        <button type="button" class="nav-tab" data-inv-vista="reposicion">Reposición</button>
+        <button type="button" class="nav-tab" data-inv-vista="categorias">Categorías</button>
+        <button type="button" class="nav-tab" data-inv-vista="proveedores">Proveedores</button>
+      </nav>
+      <div class="inv-main">
+      <div id="inv-vista-productos">
+      <div class="stat-cards">
+        <div class="stat-card">
+          <span class="stat-label">Productos</span>
+          <span class="stat-value" id="inventario-stat-total">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Valor del inventario <span class="ayuda">al costo promedio, sin negativos</span></span>
+          <span class="stat-value" id="inventario-stat-valor">—</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input type="text" id="inventario-q" placeholder="Buscar por nombre, SKU o SKU de proveedor..." class="search-input" />
+        <select id="inventario-categoria">
+          <option value="">Todas las categorías</option>
+        </select>
+        <select id="inventario-familia">
+          <option value="">Todas las familias</option>
+        </select>
+        <select id="inventario-proveedor">
+          <option value="">Todos los proveedores</option>
+        </select>
+        <label class="checkbox-inline"><input type="checkbox" id="inventario-bajo-minimo" /> Bajo mínimo</label>
+        <label class="checkbox-inline"><input type="checkbox" id="inventario-negativo" /> Stock negativo</label>
+        <label class="checkbox-inline"><input type="checkbox" id="inventario-descontinuados" /> Mostrar descontinuados</label>
+      </div>
+      <div class="filter-bar">
+        <button type="button" id="btn-nuevo-inventario">+ Nuevo producto</button>
+        <button type="button" id="btn-inv-compra">Registrar compra</button>
+        <button type="button" id="btn-inv-conteo" class="secondary">Conteo inicial</button>
+        <button type="button" id="btn-export-inventario" class="secondary">Exportar CSV</button>
+      </div>
+
+      <!-- Barra de edición masiva: aparece al marcar filas -->
+      <div id="inventario-bulk" class="bulk-bar hidden">
+        <span id="inventario-bulk-count"></span>
+        <button type="button" id="inventario-bulk-todos" class="link-btn"></button>
+        <select id="inventario-bulk-accion">
+          <option value="categoria">Cambiar categoría / familia</option>
+          <option value="proveedor">Agregar proveedor</option>
+          <option value="minimo">Fijar stock mínimo</option>
+          <option value="descontinuar">Descontinuar</option>
+          <option value="reactivar">Reactivar</option>
+        </select>
+        <select id="inventario-bulk-categoria"></select>
+        <select id="inventario-bulk-proveedor" class="hidden"></select>
+        <input type="number" id="inventario-bulk-minimo" class="hidden" min="0" step="any" placeholder="Mínimo" />
+        <button type="button" id="inventario-bulk-aplicar">Aplicar</button>
+        <button type="button" id="inventario-bulk-limpiar" class="secondary">Quitar selección</button>
+      </div>
+
+      <div class="table-wrap" id="inventario-scroll">
+        <table class="table-sortable">
+          <thead>
+            <tr>
+              <th class="col-check"><input type="checkbox" id="inventario-check-todos" title="Marcar los de esta lista" /></th>
+              <th data-sort="sku">SKU</th>
+              <th data-sort="nombre">Producto</th>
+              <th data-sort="categoria">Categoría / familia</th>
+              <th data-sort="stock" class="col-precio">Stock</th>
+              <th data-sort="stock_minimo" class="col-precio">Mínimo</th>
+              <th>Semáforo</th>
+              <th data-sort="costo_promedio" class="col-precio">Costo prom.</th>
+              <th data-sort="ultima_compra">Última compra</th>
+              <th>Proveedor(es)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="inventario-body"></tbody>
+        </table>
+        <p id="inventario-status" class="table-status"></p>
+      </div>
+      </div>
+
+      <div id="inv-vista-compras" class="hidden">
+        <h2>Compras</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Proveedor</th><th>Factura</th><th class="col-precio">Total</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="inv-compras-body"></tbody>
+          </table>
+        </div>
+        <button type="button" id="inv-compras-mas" class="link-btn hidden">Ver más</button>
+      </div>
+
+      <div id="inv-vista-reposicion" class="hidden">
+        <h2>Reposición</h2>
+        <div class="filter-bar">
+          <p class="modal-nota search-input">Productos en el mínimo o debajo, agrupados por el proveedor de la última compra. Sugerido en unidad de compra.</p>
+          <button type="button" id="inv-repo-export" class="secondary">Exportar CSV</button>
+        </div>
+        <div id="inv-repo-contenido" class="table-wrap"></div>
+      </div>
+
+      <div id="inv-vista-categorias" class="hidden">
+        <h2>Categorías y familias</h2>
+        <form id="inv-cat-form" class="filter-bar" autocomplete="off">
+          <input type="text" id="inv-cat-nombre" class="search-input" placeholder="Nombre" required />
+          <select id="inv-cat-padre"></select>
+          <button type="submit">Agregar</button>
+        </form>
+        <p id="inv-cat-message" class="message"></p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nombre</th><th>Productos</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="inv-cat-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="inv-vista-proveedores" class="hidden">
+        <h2>Proveedores</h2>
+        <form id="inv-prov-form" autocomplete="off">
+          <div class="form-grid">
+            <label>Nombre <input type="text" id="inv-prov-nombre" required /></label>
+            <label>RUC <input type="text" id="inv-prov-ruc" /></label>
+            <label>Contacto <input type="text" id="inv-prov-contacto" /></label>
+            <label>Teléfono <input type="text" id="inv-prov-telefono" /></label>
+            <label>Correo <input type="email" id="inv-prov-correo" /></label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" id="inv-prov-nuevo" class="secondary hidden">Cancelar edición</button>
+            <button type="submit" id="inv-prov-guardar">Agregar proveedor</button>
+          </div>
+        </form>
+        <p id="inv-prov-message" class="message"></p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nombre</th><th>RUC</th><th>Contacto</th><th>Teléfono</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="inv-prov-body"></tbody>
+          </table>
+        </div>
+      </div>
+      </div>
+      </div>
+    </section>
+
+    <!-- Cotizaciones -->
+    <section id="tab-cotizaciones" class="tab-panel hidden">
+      <div class="stat-cards">
+        <div class="stat-card">
+          <span class="stat-label">Cotizaciones</span>
+          <span class="stat-value" id="cot-stat-total">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Calientes (&lt; 1 semana)</span>
+          <span class="stat-value" id="cot-stat-caliente">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Por seguir (tibias + frías)</span>
+          <span class="stat-value" id="cot-stat-seguimiento">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Monto aceptado</span>
+          <span class="stat-value" id="cot-stat-monto">—</span>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <input type="text" id="cot-q" placeholder="Buscar por número, cliente o documento..." class="search-input" />
+        <select id="cot-semaforo">
+          <option value="">Todos los estados</option>
+          <option value="caliente">Caliente (&lt; 1 semana)</option>
+          <option value="tibio">Tibio (1 semana – 1 mes)</option>
+          <option value="frio">Frío (1 – 3 meses)</option>
+          <option value="vencida">Vencida (&gt; 3 meses)</option>
+          <option value="aceptada">Aceptada</option>
+          <option value="rechazada">Rechazada</option>
+        </select>
+        <div class="filter-date-group">
+          <label class="filter-date">
+            Desde
+            <input type="date" id="cot-desde" />
+          </label>
+          <label class="filter-date">
+            Hasta
+            <input type="date" id="cot-hasta" />
+          </label>
+        </div>
+        <button type="button" id="btn-nueva-cotizacion">+ Nueva cotización</button>
+      </div>
+
+      <div class="table-wrap" id="cot-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Número</th>
+              <th>Cliente</th>
+              <th>Título</th>
+              <th class="col-precio">Total</th>
+              <th>Emitida</th>
+              <th>Últ. actividad</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="cot-body"></tbody>
+        </table>
+        <p id="cot-status" class="table-status"></p>
+      </div>
+    </section>
+
+    <!-- Cuentas y roles -->
+    <section id="tab-cuentas" class="tab-panel hidden">
+      <div class="filter-bar">
+        <h2 style="margin: 0; flex: 1">Cuentas</h2>
+        <button type="button" id="btn-nueva-cuenta">+ Nueva cuenta</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Rol</th>
+              <th>Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="cuentas-body"></tbody>
+        </table>
+        <p id="cuentas-status" class="table-status"></p>
+      </div>
+
+      <div class="filter-bar" style="margin-top: 24px">
+        <h2 style="margin: 0; flex: 1">Roles</h2>
+        <button type="button" id="btn-nuevo-rol">+ Nuevo rol</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Rol</th>
+              <th>Clientes</th>
+              <th>Asistencias</th>
+              <th>Servicios</th>
+              <th>Inventario</th>
+              <th>Cotizaciones</th>
+              <th>Cuentas</th>
+              <th>Precios</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="roles-body"></tbody>
+        </table>
+        <p id="roles-status" class="table-status"></p>
+      </div>
+    </section>
   </div>
+
+  <!-- Alta / edición de servicio -->
+  <div id="servicio-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="servicio-modal-title">Nuevo servicio</h2>
+      <form id="servicio-form" autocomplete="off">
+        <div class="tipo-servicio">
+          <label class="radio-opcion">
+            <input type="radio" name="servicio-tipo" value="nuevo" checked />
+            Servicio nuevo
+          </label>
+          <label class="radio-opcion">
+            <input type="radio" name="servicio-tipo" value="sub" />
+            Sub-servicio de otro
+          </label>
+        </div>
+
+        <label class="campo-padre hidden" id="servicio-padre-wrap">
+          Servicio padre
+          <select id="servicio-padre"></select>
+        </label>
+
+        <div class="form-grid">
+          <label>
+            SKU
+            <input type="text" id="servicio-sku" placeholder="Se genera solo" readonly />
+            <button type="button" id="servicio-sku-toggle" class="link-btn">Escribirlo a mano</button>
+          </label>
+          <label>
+            Categoría
+            <select id="servicio-categoria" required></select>
+            <input
+              type="text"
+              id="servicio-categoria-nueva"
+              class="campo-nuevo hidden"
+              placeholder="Nombre de la nueva categoría"
+            />
+          </label>
+          <label class="form-full">
+            Servicio
+            <input type="text" id="servicio-nombre" required placeholder="Nombre del servicio" />
+          </label>
+          <label class="form-full">
+            Familia
+            <select id="servicio-familia"></select>
+            <input
+              type="text"
+              id="servicio-familia-nueva"
+              class="campo-nuevo hidden"
+              placeholder="Nombre de la nueva familia"
+            />
+          </label>
+          <label>
+            Precio regular
+            <input type="number" id="servicio-precio-regular" min="0" step="0.01" placeholder="0.00" />
+          </label>
+          <label>
+            Precio oferta
+            <input type="number" id="servicio-precio-oferta" min="0" step="0.01" placeholder="0.00" />
+          </label>
+          <label>
+            Precio máx. descuento
+            <input type="number" id="servicio-precio-max" min="0" step="0.01" placeholder="0.00" />
+          </label>
+        </div>
+        <div id="servicio-guia" class="hidden">
+          <div class="bloque-titulo" style="margin-top: 14px">Insumos que consume (guía de consumo, en unidad base)</div>
+          <datalist id="guia-opciones"></datalist>
+          <div id="guia-filas"></div>
+          <button type="button" id="guia-agregar" class="link-btn">+ Agregar insumo</button>
+        </div>
+        <p id="servicio-form-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="servicio-cancelar" class="secondary">Cancelar</button>
+          <button type="submit" id="servicio-guardar">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- Cotización: alta y detalle -->
+  <div id="cotizacion-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-ancho" role="dialog" aria-modal="true">
+      <div class="modal-encabezado">
+        <h2 id="cotizacion-modal-title">Nueva cotización</h2>
+        <div class="modal-encabezado-pills">
+          <span id="cotizacion-estado" class="semaforo hidden"></span>
+          <span id="cotizacion-semaforo" class="semaforo hidden"></span>
+        </div>
+      </div>
+
+      <form id="cotizacion-form" autocomplete="off">
+        <!-- Cliente -->
+        <div class="bloque">
+          <div class="bloque-titulo">Cliente</div>
+          <div class="cliente-picker">
+            <input type="text" id="cot-cliente-buscar" class="search-input" placeholder="Buscar por documento, nombre, celular o correo..." />
+            <button type="button" id="btn-registrar-cliente" class="secondary">+ Registrar usuario</button>
+          </div>
+          <div id="cot-cliente-resultados" class="resultados hidden"></div>
+          <div id="cot-cliente-elegido" class="cliente-elegido hidden">
+            <div>
+              <strong id="cot-cliente-nombre"></strong>
+              <div class="cliente-meta" id="cot-cliente-meta"></div>
+            </div>
+            <button type="button" id="btn-cambiar-cliente" class="link-btn">Cambiar</button>
+          </div>
+        </div>
+
+        <!-- Datos -->
+        <div class="form-grid">
+          <label class="form-full">
+            Título
+            <input type="text" id="cot-titulo" placeholder="Ej. Plan facial 3 meses" />
+          </label>
+          <label>
+            Validez (días)
+            <input type="number" id="cot-validez" min="1" step="1" value="30" />
+          </label>
+        </div>
+        <p class="ayuda ayuda-estado hidden" id="cot-ayuda-estado">
+          El estado se calcula solo a partir de cada ítem: aceptá o rechazá cada uno abajo.
+        </p>
+
+        <!-- Ítems -->
+        <div class="bloque">
+          <div class="bloque-titulo">Ítems</div>
+          <div class="item-picker">
+            <input type="text" id="cot-item-buscar" class="search-input" placeholder="Buscar servicio del tarifario por SKU o nombre..." />
+          </div>
+          <div id="cot-item-resultados" class="resultados hidden"></div>
+          <div id="cot-item-precio-selector" class="precio-selector hidden">
+            <div class="precio-selector-header">
+              <strong id="cot-item-precio-nombre"></strong>
+              <button type="button" id="cot-item-precio-cancelar" class="link-btn">Cancelar</button>
+            </div>
+            <p class="ayuda">Elegí el precio con el que se agrega este ítem.</p>
+            <div id="cot-item-precio-opciones" class="precio-opciones"></div>
+          </div>
+
+          <div class="table-wrap tabla-items">
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Descripción</th>
+                  <th class="col-precio">Cant.</th>
+                  <th class="col-precio">P. unit.</th>
+                  <th class="col-precio">Importe</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="cot-items-body"></tbody>
+            </table>
+            <p id="cot-items-vacio" class="table-status">Todavía no agregaste ítems.</p>
+          </div>
+          <div class="total-linea">
+            <span>Total</span>
+            <strong id="cot-total">S/ 0.00</strong>
+          </div>
+        </div>
+
+        <label class="form-full campo-bloque">
+          Observaciones <span class="ayuda">(salen impresas en el PDF)</span>
+          <textarea id="cot-observaciones" rows="2" placeholder="Condiciones, aclaraciones..."></textarea>
+        </label>
+
+        <!-- Actividad: notas manuales + eventos automáticos (ítems, estados). Nunca en el PDF. -->
+        <div class="bloque hidden" id="cot-bloque-notas">
+          <div class="bloque-titulo">Actividad <span class="ayuda">(interna, no sale en el PDF)</span></div>
+          <div class="nota-nueva">
+            <input type="text" id="cot-nota-texto" placeholder="Agregar una nota de seguimiento..." />
+            <button type="button" id="btn-agregar-nota" class="secondary">Agregar</button>
+          </div>
+          <ul id="cot-notas-lista" class="notas-lista actividad-lista"></ul>
+        </div>
+
+        <p id="cotizacion-form-message" class="message"></p>
+
+        <div class="modal-actions modal-actions-split">
+          <div class="acciones-doc hidden" id="cot-acciones-doc">
+            <button type="button" id="btn-cot-imprimir" class="secondary">Imprimir</button>
+            <button type="button" id="btn-cot-pdf" class="secondary">Descargar PDF</button>
+            <button type="button" id="btn-cot-email" class="secondary">Enviar por correo</button>
+          </div>
+          <div class="acciones-principales">
+            <button type="button" id="cotizacion-cancelar" class="secondary">Cerrar</button>
+            <button type="submit" id="cotizacion-guardar">Guardar</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Envío por correo -->
+  <div id="email-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2>Enviar cotización por correo</h2>
+      <form id="email-form" autocomplete="off">
+        <label class="campo-bloque">
+          Para
+          <input type="email" id="email-destinatario" required placeholder="cliente@correo.com" />
+        </label>
+        <label class="campo-bloque">
+          Mensaje
+          <textarea id="email-mensaje" rows="5"></textarea>
+        </label>
+        <p class="ayuda">Se adjunta el PDF de la cotización.</p>
+        <p id="email-form-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="email-cancelar" class="secondary">Cancelar</button>
+          <button type="submit" id="email-enviar">Enviar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Alta rápida de cliente desde la cotización -->
+  <div id="cliente-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2>Registrar usuario</h2>
+      <form id="cliente-form" autocomplete="off">
+        <div class="form-grid">
+          <label>
+            Tipo de documento
+            <select id="cli-tipo-doc">
+              <option value="DNI">DNI</option>
+              <option value="CE">Carnet de extranjería</option>
+              <option value="PASAPORTE">Pasaporte</option>
+              <option value="MENOR DE EDAD">Menor de edad</option>
+              <option value="RUC">RUC</option>
+            </select>
+          </label>
+          <label>
+            Documento
+            <input type="text" id="cli-documento" required />
+          </label>
+          <label class="form-full">
+            Nombre completo
+            <input type="text" id="cli-paciente" required />
+          </label>
+          <label>
+            ¿Cómo prefiere que le llamemos?
+            <input type="text" id="cli-apodo" />
+          </label>
+          <label>
+            Celular
+            <input type="text" id="cli-celular" />
+          </label>
+          <label class="form-full">
+            Correo
+            <input type="email" id="cli-correo" />
+          </label>
+          <label>
+            Distrito
+            <select id="cli-distrito"></select>
+          </label>
+          <label>
+            Sexo
+            <select id="cli-sexo">
+              <option value="">—</option>
+              <option value="F">Femenino</option>
+              <option value="M">Masculino</option>
+            </select>
+          </label>
+          <label>
+            Fecha de nacimiento
+            <input type="date" id="cli-nacimiento" />
+          </label>
+          <label class="form-full">
+            Dirección
+            <input type="text" id="cli-direccion" />
+          </label>
+        </div>
+        <p id="cliente-form-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="cliente-cancelar" class="secondary">Cancelar</button>
+          <button type="submit" id="cliente-guardar">Registrar y usar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Detalle de usuario: datos + sus cotizaciones -->
+  <div id="usuario-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-ancho" role="dialog" aria-modal="true">
+      <div class="modal-encabezado">
+        <h2 id="usuario-modal-title">Usuario</h2>
+      </div>
+      <div class="cliente-meta" id="usuario-modal-meta"></div>
+
+      <div class="bloque">
+        <div class="bloque-titulo">Cotizaciones</div>
+        <div class="table-wrap tabla-items">
+          <table>
+            <thead>
+              <tr>
+                <th>Número</th>
+                <th>Título</th>
+                <th class="col-precio">Total</th>
+                <th>Emitida</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="usuario-cotizaciones-body"></tbody>
+          </table>
+          <p id="usuario-cotizaciones-status" class="table-status"></p>
+        </div>
+      </div>
+
+      <div class="bloque">
+        <div class="bloque-titulo">Historial de asistencias</div>
+        <div class="table-wrap tabla-items">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Turno</th>
+                <th>Área</th>
+                <th>Servicio</th>
+              </tr>
+            </thead>
+            <tbody id="usuario-asistencias-body"></tbody>
+          </table>
+          <p id="usuario-asistencias-status" class="table-status"></p>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="usuario-cerrar" class="secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alta / edición de cuenta -->
+  <div id="cuenta-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="cuenta-modal-title">Nueva cuenta</h2>
+      <form id="cuenta-form" autocomplete="off">
+        <label>
+          Usuario
+          <input type="text" id="cuenta-username" required autocomplete="off" />
+        </label>
+        <label>
+          Contraseña
+          <input type="password" id="cuenta-password" autocomplete="new-password" placeholder="Mínimo 4 caracteres" />
+        </label>
+        <label>
+          Rol
+          <select id="cuenta-rol" required></select>
+        </label>
+        <label class="checkbox-inline">
+          <input type="checkbox" id="cuenta-activo" checked />
+          Cuenta activa
+        </label>
+        <div class="modal-actions">
+          <button type="button" id="cuenta-cancelar" class="secondary">Cancelar</button>
+          <button type="submit">Guardar</button>
+        </div>
+        <p id="cuenta-form-message" class="message"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Alta / edición de rol -->
+  <div id="rol-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="rol-modal-title">Nuevo rol</h2>
+      <form id="rol-form" autocomplete="off">
+        <label>
+          Nombre del rol
+          <input type="text" id="rol-nombre" required autocomplete="off" />
+        </label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-clientes" /> Clientes</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-asistencias" /> Asistencias</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-servicios" /> Servicios</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-inventario" /> Inventario (incluye costos)</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-cotizaciones" /> Cotizaciones</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-perm-cuentas" /> Cuentas</label>
+
+        <div class="bloque-titulo" style="margin-top: 12px">Precios que puede usar en cotizaciones</div>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-precio-regular" /> Precio regular</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-precio-oferta" /> Precio oferta</label>
+        <label class="checkbox-inline"><input type="checkbox" id="rol-precio-max_desc" /> Precio máx. descuento (con aprobación)</label>
+
+        <div class="modal-actions">
+          <button type="button" id="rol-cancelar" class="secondary">Cancelar</button>
+          <button type="submit">Guardar</button>
+        </div>
+        <p id="rol-form-message" class="message"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Alta / edición de producto de inventario -->
+  <div id="inv-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="inv-modal-title">Nuevo producto</h2>
+      <form id="inv-form" autocomplete="off">
+        <div class="form-grid">
+          <label>
+            SKU
+            <input type="text" id="inv-sku" list="inv-skus-servicios" placeholder="Se genera solo" readonly />
+            <datalist id="inv-skus-servicios"></datalist>
+            <button type="button" id="inv-sku-toggle" class="link-btn">Escribirlo o elegir el de un servicio</button>
+          </label>
+          <label>
+            Categoría
+            <select id="inv-categoria"></select>
+          </label>
+          <label class="form-full">
+            Producto
+            <input type="text" id="inv-nombre" required placeholder="Nombre del producto" />
+          </label>
+          <label class="form-full">
+            Familia
+            <select id="inv-familia"></select>
+          </label>
+          <label class="form-full">
+            Descripción
+            <input type="text" id="inv-descripcion" placeholder="Opcional" />
+          </label>
+          <label>
+            Unidad base
+            <span class="ayuda">en la que se usa</span>
+            <input type="text" id="inv-unidad-base" list="inv-unidades-base" placeholder="Elegir o escribir" />
+          </label>
+          <label>
+            Unidad de compra
+            <span class="ayuda">en la que se compra</span>
+            <input type="text" id="inv-unidad-compra" list="inv-unidades-compra" placeholder="Elegir o escribir" />
+          </label>
+          <label>
+            Factor
+            <span class="ayuda">base por unidad de compra</span>
+            <input type="number" id="inv-factor" min="0" step="any" placeholder="1" />
+          </label>
+          <label>
+            Stock mínimo
+            <span class="ayuda">en unidad base</span>
+            <input type="number" id="inv-minimo" min="0" step="any" placeholder="Sin mínimo" />
+          </label>
+        </div>
+        <!-- Sugerencias; se puede escribir cualquier otra -->
+        <datalist id="inv-unidades-base">
+          <option value="unidad"></option><option value="ml"></option><option value="l"></option>
+          <option value="g"></option><option value="kg"></option><option value="par"></option>
+          <option value="aplicación"></option><option value="hoja"></option><option value="metro"></option>
+        </datalist>
+        <datalist id="inv-unidades-compra">
+          <option value="unidad"></option><option value="caja"></option><option value="frasco"></option>
+          <option value="paquete"></option><option value="bolsa"></option><option value="botella"></option>
+          <option value="galón"></option><option value="rollo"></option><option value="kit"></option>
+        </datalist>
+
+        <div class="bloque-titulo" style="margin-top: 14px">Proveedores</div>
+        <div id="inv-proveedores-filas"></div>
+        <button type="button" id="inv-proveedor-agregar" class="link-btn">+ Agregar proveedor</button>
+
+        <p id="inv-form-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="inv-cancelar" class="secondary">Cancelar</button>
+          <button type="submit" id="inv-guardar">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+
+  <!-- Conteo inicial por Excel -->
+  <div id="inv-conteo-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2>Conteo inicial</h2>
+      <p class="modal-nota">
+        Descargá la plantilla (ya trae los productos sin movimientos), completá <b>cantidad</b> en unidad base y,
+        si querés, <b>costo_unitario</b> por unidad base con IGV. Es todo o nada: si una fila falla no se carga ninguna.
+      </p>
+      <p><a href="/api/admin/inventario/conteo-inicial/plantilla" class="link-btn">Descargar plantilla</a></p>
+      <input type="file" id="inv-conteo-archivo" accept=".xlsx" />
+      <div id="inv-conteo-resultado" class="message"></div>
+      <div class="modal-actions">
+        <button type="button" id="inv-conteo-cerrar" class="secondary">Cerrar</button>
+        <button type="button" id="inv-conteo-subir">Cargar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Registrar compra -->
+  <div id="inv-compra-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
+      <h2>Registrar compra</h2>
+      <form id="inv-compra-form" autocomplete="off">
+        <div class="form-grid">
+          <label>Proveedor <select id="inv-compra-proveedor" required></select></label>
+          <label>N.º de factura <input type="text" id="inv-compra-factura" /></label>
+          <label>Fecha <input type="date" id="inv-compra-fecha" required /></label>
+        </div>
+        <div class="bloque-titulo" style="margin-top: 14px">Productos (cantidad en unidad de compra; costo con IGV)</div>
+        <datalist id="inv-compra-opciones"></datalist>
+        <div id="inv-compra-lineas"></div>
+        <button type="button" id="inv-compra-agregar" class="link-btn">+ Agregar producto</button>
+        <p class="modal-nota" style="text-align: right"><b>Total: <span id="inv-compra-total">S/ 0.00</span></b></p>
+        <p id="inv-compra-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="inv-compra-cancelar" class="secondary">Cancelar</button>
+          <button type="submit" id="inv-compra-guardar">Guardar compra</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- Historial de compras de un producto (clic en la fila). Va antes del
+       detalle de compra para que el detalle se abra encima. -->
+  <div id="inv-prod-compras-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
+      <h2 id="inv-prod-compras-titulo">Compras</h2>
+      <p id="inv-prod-compras-info" class="modal-nota"></p>
+      <div class="table-wrap modal-tabla">
+        <table>
+          <thead><tr><th>Fecha</th><th>Proveedor</th><th>Factura</th><th>SKU prov.</th><th class="col-precio">Cantidad</th><th class="col-precio">Costo unit.</th><th class="col-precio">Subtotal</th></tr></thead>
+          <tbody id="inv-prod-compras-body"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="inv-prod-compras-cerrar" class="secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detalle de compra (con anulación) -->
+  <div id="inv-compra-det-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
+      <h2 id="inv-compra-det-titulo">Compra</h2>
+      <p id="inv-compra-det-info" class="modal-nota"></p>
+      <div class="table-wrap modal-tabla">
+        <table>
+          <thead><tr><th>SKU</th><th>Producto</th><th>SKU prov.</th><th class="col-precio">Cantidad</th><th class="col-precio">Costo unit.</th><th class="col-precio">Subtotal</th></tr></thead>
+          <tbody id="inv-compra-det-body"></tbody>
+        </table>
+      </div>
+      <p id="inv-compra-det-message" class="message"></p>
+      <div class="modal-actions">
+        <button type="button" id="inv-compra-det-cerrar" class="secondary">Cerrar</button>
+        <button type="button" id="inv-compra-det-anular" class="btn-danger">Anular compra</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ajuste de stock -->
+  <div id="inv-ajuste-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="inv-ajuste-titulo">Ajustar stock</h2>
+      <p id="inv-ajuste-info" class="modal-nota"></p>
+      <form id="inv-ajuste-form" autocomplete="off">
+        <div class="form-grid">
+          <label class="form-full">Cantidad (+ suma, − resta; en unidad base)
+            <input type="number" id="inv-ajuste-cantidad" step="any" required />
+          </label>
+          <label class="form-full">Motivo (obligatorio)
+            <input type="text" id="inv-ajuste-motivo" required placeholder="Merma, rotura, conteo físico..." />
+          </label>
+        </div>
+        <p id="inv-ajuste-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="inv-ajuste-cancelar" class="secondary">Cancelar</button>
+          <button type="submit">Guardar ajuste</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Historial de movimientos de un producto -->
+  <div id="inv-hist-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form modal-wide" role="dialog" aria-modal="true">
+      <h2 id="inv-hist-titulo">Movimientos</h2>
+      <div class="table-wrap modal-tabla">
+        <table>
+          <thead><tr><th>Fecha</th><th>Tipo</th><th class="col-precio">Cantidad</th><th class="col-precio">Costo unit.</th><th>Motivo / ref.</th><th>Usuario</th></tr></thead>
+          <tbody id="inv-hist-body"></tbody>
+        </table>
+      </div>
+      <button type="button" id="inv-hist-mas" class="link-btn hidden">Ver más</button>
+      <div class="modal-actions">
+        <button type="button" id="inv-hist-cerrar" class="secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Guías de consumo por Excel -->
+  <div id="inv-guia-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2>Guías de consumo (Excel)</h2>
+      <p class="modal-nota">
+        Columnas: <b>servicio_sku</b>, <b>producto_sku</b> (SKU de inventario) y <b>cantidad</b> (en unidad base).
+        Cada servicio que aparece en el archivo queda con exactamente las filas del archivo (reemplaza su guía anterior);
+        los que no aparecen no se tocan. Es todo o nada.
+      </p>
+      <input type="file" id="inv-guia-archivo" accept=".xlsx" />
+      <div id="inv-guia-resultado" class="message"></div>
+      <div class="modal-actions">
+        <button type="button" id="inv-guia-cerrar" class="secondary">Cerrar</button>
+        <button type="button" id="inv-guia-subir">Cargar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dónde se usa un producto -->
+  <div id="inv-usos-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="inv-usos-titulo">Dónde se usa</h2>
+      <div class="table-wrap modal-tabla">
+        <table>
+          <thead><tr><th>SKU</th><th>Servicio</th><th class="col-precio">Cantidad por servicio</th></tr></thead>
+          <tbody id="inv-usos-body"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="inv-usos-cerrar" class="secondary">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Descontinuar producto -->
+  <div id="inv-desc-modal" class="modal-overlay hidden">
+    <div class="modal-box modal-form" role="dialog" aria-modal="true">
+      <h2 id="inv-desc-titulo">Descontinuar</h2>
+      <p id="inv-desc-info" class="modal-nota"></p>
+      <form id="inv-desc-form" autocomplete="off">
+        <label class="campo-padre">
+          Reemplazado por (opcional)
+          <select id="inv-desc-reemplazo"></select>
+        </label>
+        <label class="checkbox-inline hidden" id="inv-desc-cambiar-wrap">
+          <input type="checkbox" id="inv-desc-cambiar" /> <span id="inv-desc-cambiar-texto"></span>
+        </label>
+        <p id="inv-desc-message" class="message"></p>
+        <div class="modal-actions">
+          <button type="button" id="inv-desc-cancelar" class="secondary">Cancelar</button>
+          <button type="submit">Descontinuar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 
   <!-- Modal genérico (confirmación / mensajes de error) -->
   <div id="modal-overlay" class="modal-overlay hidden">
@@ -252,6 +1219,8 @@
     </div>
   </div>
 
+  <script src="/documentoValidation.js"></script>
   <script src="admin.js"></script>
+  <script src="inventario.js"></script>
 </body>
 </html>

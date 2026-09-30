@@ -1,16 +1,62 @@
 const loginScreen = document.getElementById('login-screen');
 const loginForm = document.getElementById('login-form');
+const loginUsername = document.getElementById('login-username');
 const loginPassword = document.getElementById('login-password');
 const loginMessage = document.getElementById('login-message');
 const adminPanel = document.getElementById('admin-panel');
 const btnLogout = document.getElementById('btn-logout');
 
-const navTabs = document.querySelectorAll('.nav-tab');
+const navTabs = document.querySelectorAll('.admin-nav .nav-tab');
 const tabPanels = {
   dashboard: document.getElementById('tab-dashboard'),
   usuarios: document.getElementById('tab-usuarios'),
   checkins: document.getElementById('tab-checkins'),
+  servicios: document.getElementById('tab-servicios'),
+  inventario: document.getElementById('tab-inventario'),
+  cotizaciones: document.getElementById('tab-cotizaciones'),
+  cuentas: document.getElementById('tab-cuentas'),
 };
+
+// Cada pestaña tiene su propia URL (/admin/usuarios, /admin/servicios, ...)
+// para que se pueda compartir el link y funcione el botón "atrás".
+const TAB_SLUGS = {
+  dashboard: 'dashboard',
+  usuarios: 'usuarios',
+  checkins: 'asistencias',
+  servicios: 'servicios',
+  inventario: 'inventario',
+  cotizaciones: 'cotizaciones',
+  cuentas: 'cuentas',
+};
+const SLUG_TABS = Object.fromEntries(Object.entries(TAB_SLUGS).map(([tab, slug]) => [slug, tab]));
+
+// Qué permiso del rol habilita cada pestaña. El dashboard queda visible para
+// cualquiera que haya iniciado sesión.
+const TAB_PERMISOS = {
+  usuarios: 'clientes',
+  checkins: 'asistencias',
+  servicios: 'servicios',
+  inventario: 'inventario',
+  cotizaciones: 'cotizaciones',
+  cuentas: 'cuentas',
+};
+
+let sesionActual = null;
+
+function tienePermiso(modulo) {
+  if (!sesionActual) return false;
+  if (sesionActual.esAdmin) return true;
+  return Boolean(sesionActual.permisos && sesionActual.permisos[modulo]);
+}
+
+function tienePestana(tab) {
+  const permiso = TAB_PERMISOS[tab];
+  return !permiso || tienePermiso(permiso);
+}
+
+function primerTabDisponible() {
+  return Object.keys(tabPanels).find((tab) => tienePestana(tab)) || 'dashboard';
+}
 
 let distritosCache = [];
 
@@ -60,6 +106,33 @@ function mostrarAlert(mensaje) {
   });
 }
 
+// Los nombres de servicio y familia son texto libre cargado desde el Admin:
+// se escapan antes de meterlos en innerHTML.
+function esc(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function fmtPrecio(v) {
+  if (v === null || v === undefined || v === '') return null;
+  return Number(v).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtMoneda(v) {
+  return `S/ ${Number(v || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// "hace 3 días" — el semáforo se explica solo si se ve la antigüedad al lado.
+function fmtHace(iso) {
+  if (!iso) return '';
+  const dias = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (dias <= 0) return 'hoy';
+  if (dias === 1) return 'ayer';
+  if (dias < 30) return `hace ${dias} días`;
+  const meses = Math.floor(dias / 30);
+  return meses === 1 ? 'hace 1 mes' : `hace ${meses} meses`;
+}
+
 function fmtFecha(iso) {
   if (!iso) return '';
   return String(iso).slice(0, 10);
@@ -78,8 +151,10 @@ async function checkSession() {
   const res = await fetch('/api/admin/session');
   const data = await res.json();
   if (data.authenticated) {
+    sesionActual = data.usuario;
     mostrarPanel();
   } else {
+    sesionActual = null;
     mostrarLogin();
   }
 }
@@ -89,9 +164,16 @@ function mostrarLogin() {
   adminPanel.classList.add('hidden');
 }
 
+function aplicarPermisosNav() {
+  navTabs.forEach((btn) => btn.classList.toggle('hidden', !tienePestana(btn.dataset.tab)));
+}
+
 function mostrarPanel() {
   loginScreen.classList.add('hidden');
   adminPanel.classList.remove('hidden');
+  aplicarPermisosNav();
+  const tab = tabDesdeUrl();
+  activarTab(tienePestana(tab) ? tab : primerTabDisponible());
   initPanel();
 }
 
@@ -104,11 +186,13 @@ loginForm.addEventListener('submit', async (e) => {
     const res = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: loginPassword.value }),
+      body: JSON.stringify({ username: loginUsername.value, password: loginPassword.value }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Error al ingresar');
     loginPassword.value = '';
+    const sesion = await fetch('/api/admin/session').then((r) => r.json());
+    sesionActual = sesion.usuario;
     mostrarPanel();
   } catch (err) {
     loginMessage.textContent = err.message;
@@ -127,13 +211,29 @@ btnLogout.addEventListener('click', async () => {
 
 let panelInitialized = false;
 
+function activarTab(tab) {
+  if (!tabPanels[tab]) tab = 'dashboard';
+  navTabs.forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  Object.entries(tabPanels).forEach(([nombre, panel]) => panel.classList.toggle('hidden', nombre !== tab));
+  return tab;
+}
+
+// /admin/servicios -> "servicios". /admin y /admin/ -> "dashboard".
+function tabDesdeUrl() {
+  const slug = window.location.pathname.replace(/^\/admin\/?/, '').replace(/\/$/, '');
+  return SLUG_TABS[slug] || 'dashboard';
+}
+
 navTabs.forEach((btn) => {
   btn.addEventListener('click', () => {
-    navTabs.forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    Object.values(tabPanels).forEach((p) => p.classList.add('hidden'));
-    tabPanels[btn.dataset.tab].classList.remove('hidden');
+    const tab = activarTab(btn.dataset.tab);
+    const url = `/admin/${TAB_SLUGS[tab]}`;
+    if (window.location.pathname !== url) history.pushState({ tab }, '', url);
   });
+});
+
+window.addEventListener('popstate', () => {
+  if (!adminPanel.classList.contains('hidden')) activarTab(tabDesdeUrl());
 });
 
 async function initPanel() {
@@ -154,8 +254,12 @@ async function initPanel() {
   document.getElementById('checkins-hasta').value = hoyData.fecha;
 
   configurarDashboard();
-  configurarTabla(usuariosConfig);
-  configurarTabla(checkinsConfig);
+  if (tienePermiso('clientes')) configurarTabla(usuariosConfig);
+  if (tienePermiso('asistencias')) configurarTabla(checkinsConfig);
+  if (tienePermiso('servicios')) configurarServicios();
+  if (tienePermiso('inventario')) configurarInventario();
+  if (tienePermiso('cotizaciones')) configurarCotizaciones();
+  if (tienePermiso('cuentas')) configurarCuentas();
 }
 
 function llenarSelect(select, valores) {
@@ -320,6 +424,8 @@ const usuariosConfig = {
   statusEl: document.getElementById('usuarios-status'),
   renderRow(c) {
     const tr = document.createElement('tr');
+    tr.className = 'fila-clickeable';
+    tr._cliente = c;
     tr.innerHTML = `
       <td>${c.documento}</td>
       <td>${c.tipo_doc || ''}</td>
@@ -341,21 +447,118 @@ const usuariosConfig = {
 
 document.getElementById('usuarios-body').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-delete-cliente]');
-  if (!btn) return;
-  const documento = btn.dataset.deleteCliente;
-  const confirmado = await mostrarConfirm(`¿Eliminar al usuario con documento ${documento}? Esta acción también eliminará sus asistencias.`);
-  if (!confirmado) return;
+  if (btn) {
+    e.stopPropagation();
+    const documento = btn.dataset.deleteCliente;
+    const confirmado = await mostrarConfirm(`¿Eliminar al usuario con documento ${documento}? Esta acción también eliminará sus asistencias.`);
+    if (!confirmado) return;
 
-  btn.disabled = true;
-  try {
-    const res = await fetch(`/api/admin/clientes/${encodeURIComponent(documento)}`, { method: 'DELETE' });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Error al eliminar');
-    btn.closest('tr').remove();
-  } catch (err) {
-    await mostrarAlert(err.message);
-    btn.disabled = false;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/clientes/${encodeURIComponent(documento)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+      btn.closest('tr').remove();
+    } catch (err) {
+      await mostrarAlert(err.message);
+      btn.disabled = false;
+    }
+    return;
   }
+
+  const fila = e.target.closest('tr.fila-clickeable');
+  if (fila && fila._cliente) abrirUsuario(fila._cliente);
+});
+
+// --- Detalle de usuario: datos + sus cotizaciones --------------------------
+
+const usuarioModal = document.getElementById('usuario-modal');
+
+async function abrirUsuario(cliente) {
+  document.getElementById('usuario-modal-title').textContent = cliente.paciente || cliente.documento;
+  document.getElementById('usuario-modal-meta').textContent = [
+    `${cliente.tipo_doc || 'Doc'}: ${cliente.documento}`,
+    cliente.celular,
+    cliente.correo,
+  ]
+    .filter(Boolean)
+    .join('  ·  ');
+
+  const body = document.getElementById('usuario-cotizaciones-body');
+  const status = document.getElementById('usuario-cotizaciones-status');
+  body.innerHTML = '';
+  status.textContent = 'Cargando...';
+
+  const asisBody = document.getElementById('usuario-asistencias-body');
+  const asisStatus = document.getElementById('usuario-asistencias-status');
+  asisBody.innerHTML = '';
+  asisStatus.textContent = 'Cargando...';
+
+  usuarioModal.classList.remove('hidden');
+
+  try {
+    const res = await fetch(`/api/admin/cotizaciones?documento=${encodeURIComponent(cliente.documento)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cargar');
+
+    if (!data.rows.length) {
+      status.textContent = 'Sin cotizaciones para este usuario.';
+    } else {
+      status.textContent = '';
+      data.rows.forEach((c) => {
+        const tr = document.createElement('tr');
+        tr.className = 'fila-clickeable';
+        tr.dataset.id = c.id;
+        tr.innerHTML = `
+          <td class="cell-numero">${esc(c.numero)}</td>
+          <td>${esc(c.titulo) || ''}</td>
+          <td class="cell-precio">${fmtMoneda(c.total)}</td>
+          <td>${fmtFecha(c.created_at)}</td>
+          <td>${pillSemaforo(c.semaforo)}</td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+  } catch (err) {
+    status.textContent = 'Error al cargar.';
+  }
+
+  try {
+    const res = await fetch(`/api/admin/asistencias?documento=${encodeURIComponent(cliente.documento)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cargar');
+
+    if (!data.rows.length) {
+      asisStatus.textContent = 'Sin asistencias registradas.';
+    } else {
+      asisStatus.textContent = '';
+      data.rows.forEach((a) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${fmtFecha(a.fecha)}</td>
+          <td>${a.hora_atencion || ''}</td>
+          <td>${a.turno || ''}</td>
+          <td>${esc(a.area) || ''}</td>
+          <td>${esc(a.servicio) || ''}</td>
+        `;
+        asisBody.appendChild(tr);
+      });
+    }
+  } catch (err) {
+    asisStatus.textContent = 'Error al cargar.';
+  }
+}
+
+document.getElementById('usuario-cotizaciones-body').addEventListener('click', (e) => {
+  const fila = e.target.closest('tr[data-id]');
+  if (!fila) return;
+  usuarioModal.classList.add('hidden');
+  abrirCotizacion(fila.dataset.id);
+});
+
+document.getElementById('usuario-cerrar').addEventListener('click', () => usuarioModal.classList.add('hidden'));
+usuarioModal.addEventListener('click', (e) => {
+  if (e.target === usuarioModal) usuarioModal.classList.add('hidden');
 });
 
 document.getElementById('btn-export-csv').addEventListener('click', () => {
@@ -443,4 +646,1551 @@ document.getElementById('checkins-body').addEventListener('click', async (e) => 
   }
 });
 
+// ---------------------------------------------------------------------------
+// Servicios (tarifario)
+// ---------------------------------------------------------------------------
+
+const serviciosQ = document.getElementById('servicios-q');
+const serviciosCategoria = document.getElementById('servicios-categoria');
+const serviciosFamilia = document.getElementById('servicios-familia');
+const serviciosBody = document.getElementById('servicios-body');
+const serviciosStatus = document.getElementById('servicios-status');
+const serviciosScroll = document.getElementById('servicios-scroll');
+const serviciosTabla = serviciosScroll.querySelector('table');
+
+const servicioModal = document.getElementById('servicio-modal');
+const servicioForm = document.getElementById('servicio-form');
+const servicioFormMessage = document.getElementById('servicio-form-message');
+const servicioGuardar = document.getElementById('servicio-guardar');
+const inputServicioSku = document.getElementById('servicio-sku');
+const inputServicioCategoria = document.getElementById('servicio-categoria');
+const inputServicioFamilia = document.getElementById('servicio-familia');
+const inputCategoriaNueva = document.getElementById('servicio-categoria-nueva');
+const inputFamiliaNueva = document.getElementById('servicio-familia-nueva');
+const inputServicioNombre = document.getElementById('servicio-nombre');
+const inputPrecioRegular = document.getElementById('servicio-precio-regular');
+const inputPrecioOferta = document.getElementById('servicio-precio-oferta');
+const inputPrecioMax = document.getElementById('servicio-precio-max');
+const inputServicioPadre = document.getElementById('servicio-padre');
+const servicioPadreWrap = document.getElementById('servicio-padre-wrap');
+const servicioSkuToggle = document.getElementById('servicio-sku-toggle');
+const radiosTipo = document.querySelectorAll('input[name="servicio-tipo"]');
+
+// Ordenamiento por defecto: agrupado por categoría (y dentro, por familia).
+const serviciosState = { offset: 0, hasMore: true, loading: false, sort: 'categoria', dir: 'asc' };
+let facetasCache = { categorias: [], familias: [] };
+// SKU en edición, o null cuando el formulario está creando un servicio nuevo.
+let servicioEditando = null;
+// El SKU se autogenera salvo que el usuario pida escribirlo a mano.
+let skuManual = false;
+
+function filtrosServicios() {
+  return {
+    q: serviciosQ.value.trim(),
+    categoria: serviciosCategoria.value,
+    familia: serviciosFamilia.value,
+    sort: serviciosState.sort,
+    dir: serviciosState.dir,
+  };
+}
+
+function paramsServicios(extra = {}) {
+  const params = new URLSearchParams({ ...filtrosServicios(), ...extra });
+  [...params.keys()].forEach((k) => {
+    if (!params.get(k)) params.delete(k);
+  });
+  return params;
+}
+
+function renderServicioRow(p) {
+  const tr = document.createElement('tr');
+  tr.dataset.sku = p.sku;
+  const precio = (v) => {
+    const txt = fmtPrecio(v);
+    return `<td class="cell-precio${txt ? '' : ' vacio'}">${txt || '—'}</td>`;
+  };
+  tr.innerHTML = `
+    <td class="cell-sku">${esc(p.sku)}</td>
+    <td><span class="pill">${esc(p.categoria)}</span></td>
+    <td>${esc(p.familia) || ''}</td>
+    <td class="cell-servicio">${esc(p.nombre)}</td>
+    ${precio(p.precio_regular)}
+    ${precio(p.precio_oferta)}
+    ${precio(p.precio_max_desc)}
+    <td>
+      <div class="row-actions">
+        <button type="button" class="btn-edit-row" data-edit-servicio="${esc(p.sku)}" title="Editar servicio">✎</button>
+        <button type="button" class="btn-delete-row" data-delete-servicio="${esc(p.sku)}" title="Eliminar servicio">✕</button>
+      </div>
+    </td>
+  `;
+  // Los datos crudos viajan con la fila para poder abrir el formulario de
+  // edición sin volver a pedirlos al servidor.
+  tr._servicio = p;
+  return tr;
+}
+
+async function cargarServicios({ reset }) {
+  if (serviciosState.loading) return;
+  if (reset) {
+    serviciosState.offset = 0;
+    serviciosState.hasMore = true;
+    serviciosBody.innerHTML = '';
+  }
+  if (!serviciosState.hasMore) return;
+
+  serviciosState.loading = true;
+  serviciosStatus.textContent = 'Cargando...';
+
+  try {
+    const res = await fetch(`/api/admin/servicios?${paramsServicios({ offset: String(serviciosState.offset) })}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cargar');
+
+    data.rows.forEach((p) => serviciosBody.appendChild(renderServicioRow(p)));
+    serviciosState.hasMore = data.hasMore;
+    serviciosState.offset += data.rows.length;
+    document.getElementById('servicios-stat-total').textContent = data.total;
+    serviciosStatus.textContent = serviciosState.hasMore ? '' : 'No hay más resultados.';
+    if (serviciosState.offset === 0) serviciosStatus.textContent = 'Sin resultados.';
+  } catch (err) {
+    serviciosStatus.textContent = 'Error al cargar.';
+  } finally {
+    serviciosState.loading = false;
+  }
+}
+
+function llenarOpciones(select, valores, etiquetaTodos) {
+  const seleccionado = select.value;
+  select.innerHTML = `<option value="">${etiquetaTodos}</option>`;
+  valores.forEach((v) => {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = v;
+    select.appendChild(opt);
+  });
+  // Si el valor elegido sigue existiendo, se conserva.
+  select.value = valores.includes(seleccionado) ? seleccionado : '';
+}
+
+// Las familias mostradas dependen de la categoría elegida (una familia
+// pertenece a una sola categoría).
+function familiasDeCategoria(categoria) {
+  const familias = facetasCache.familias
+    .filter((f) => !categoria || f.categoria === categoria)
+    .map((f) => f.familia);
+  return [...new Set(familias)].sort((a, b) => a.localeCompare(b, 'es'));
+}
+
+function refrescarFiltrosServicios() {
+  llenarOpciones(serviciosCategoria, facetasCache.categorias, 'Todas las categorías');
+  const familias = familiasDeCategoria(serviciosCategoria.value);
+  llenarOpciones(serviciosFamilia, familias, 'Todas las familias');
+  document.getElementById('servicios-stat-categorias').textContent = facetasCache.categorias.length;
+  document.getElementById('servicios-stat-familias').textContent = familias.length;
+}
+
+async function cargarFacetasServicios() {
+  try {
+    const res = await fetch('/api/admin/servicios/facetas');
+    facetasCache = await res.json();
+    refrescarFiltrosServicios();
+  } catch (err) {
+    // Los filtros quedan con lo que ya tenían si falla.
+  }
+}
+
+function marcarColumnaOrdenada() {
+  serviciosTabla.querySelectorAll('th[data-sort]').forEach((th) => {
+    th.classList.toggle('sort-asc', th.dataset.sort === serviciosState.sort && serviciosState.dir === 'asc');
+    th.classList.toggle('sort-desc', th.dataset.sort === serviciosState.sort && serviciosState.dir === 'desc');
+  });
+}
+
+function configurarServicios() {
+  const recargar = debounce(() => cargarServicios({ reset: true }), 400);
+  serviciosQ.addEventListener('input', recargar);
+
+  serviciosCategoria.addEventListener('change', () => {
+    llenarOpciones(serviciosFamilia, familiasDeCategoria(serviciosCategoria.value), 'Todas las familias');
+    document.getElementById('servicios-stat-familias').textContent = serviciosFamilia.options.length - 1;
+    cargarServicios({ reset: true });
+  });
+  serviciosFamilia.addEventListener('change', () => cargarServicios({ reset: true }));
+
+  serviciosTabla.querySelectorAll('th[data-sort]').forEach((th) => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (serviciosState.sort === col) {
+        serviciosState.dir = serviciosState.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        serviciosState.sort = col;
+        serviciosState.dir = 'asc';
+      }
+      marcarColumnaOrdenada();
+      cargarServicios({ reset: true });
+    });
+  });
+
+  serviciosScroll.addEventListener('scroll', () => {
+    if (serviciosScroll.scrollTop + serviciosScroll.clientHeight >= serviciosScroll.scrollHeight - 80) {
+      cargarServicios({ reset: false });
+    }
+  });
+
+  marcarColumnaOrdenada();
+  cargarFacetasServicios();
+  cargarServicios({ reset: true });
+}
+
+// --- SKU autogenerado ------------------------------------------------------
+
+function tipoServicioSeleccionado() {
+  return document.querySelector('input[name="servicio-tipo"]:checked').value;
+}
+
+// Pide al servidor el próximo SKU y lo muestra como preview. El definitivo se
+// asigna al guardar, así que acá alcanza con no romper si falla.
+async function previsualizarSku() {
+  if (skuManual || servicioEditando !== null) return;
+
+  const esSub = tipoServicioSeleccionado() === 'sub';
+  const params = new URLSearchParams();
+  if (esSub) {
+    if (!inputServicioPadre.value) {
+      inputServicioSku.value = '';
+      return;
+    }
+    params.set('padre', inputServicioPadre.value);
+  } else {
+    const categoria = categoriaElegida();
+    if (!categoria) {
+      inputServicioSku.value = '';
+      return;
+    }
+    params.set('categoria', categoria);
+    if (familiaElegida()) params.set('familia', familiaElegida());
+  }
+
+  try {
+    const res = await fetch(`/api/admin/servicios/next-sku?${params}`);
+    const data = await res.json();
+    inputServicioSku.value = res.ok ? data.sku : '';
+  } catch (err) {
+    inputServicioSku.value = '';
+  }
+}
+
+const previsualizarSkuDebounced = debounce(previsualizarSku, 300);
+
+// El select de padre lista todos los servicios agrupados por categoría, para
+// poder elegir de cuál cuelga el sub-servicio.
+const serviciosPorSku = new Map();
+
+async function cargarSelectPadres() {
+  try {
+    const res = await fetch('/api/admin/servicios/opciones');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    serviciosPorSku.clear();
+    const seleccionado = inputServicioPadre.value;
+    inputServicioPadre.innerHTML = '<option value="">Elegí un servicio...</option>';
+
+    let grupo = null;
+    data.rows.forEach((p) => {
+      serviciosPorSku.set(p.sku, p);
+      if (p.categoria !== grupo) {
+        grupo = p.categoria;
+        const og = document.createElement('optgroup');
+        og.label = grupo;
+        inputServicioPadre.appendChild(og);
+      }
+      const opt = document.createElement('option');
+      opt.value = p.sku;
+      opt.textContent = `${p.sku} — ${p.nombre}`;
+      inputServicioPadre.lastElementChild.appendChild(opt);
+    });
+
+    if (serviciosPorSku.has(seleccionado)) inputServicioPadre.value = seleccionado;
+  } catch (err) {
+    // El formulario sigue usable para servicios nuevos si esto falla.
+  }
+}
+
+function aplicarTipoServicio() {
+  const esSub = tipoServicioSeleccionado() === 'sub';
+  servicioPadreWrap.classList.toggle('hidden', !esSub);
+  if (esSub && inputServicioPadre.value) {
+    const padre = serviciosPorSku.get(inputServicioPadre.value);
+    if (padre) {
+      poblarCategorias(padre.categoria);
+      poblarFamilias(padre.familia || '');
+    }
+  }
+  previsualizarSku();
+}
+
+function activarSkuManual(manual) {
+  skuManual = manual;
+  inputServicioSku.readOnly = !manual;
+  inputServicioSku.required = manual;
+  servicioSkuToggle.textContent = manual ? 'Generarlo automáticamente' : 'Escribirlo a mano';
+  if (manual) {
+    inputServicioSku.focus();
+    inputServicioSku.select();
+  } else {
+    previsualizarSku();
+  }
+}
+
+servicioSkuToggle.addEventListener('click', () => activarSkuManual(!skuManual));
+radiosTipo.forEach((r) => r.addEventListener('change', aplicarTipoServicio));
+inputServicioPadre.addEventListener('change', aplicarTipoServicio);
+
+// --- Categoría y familia del formulario ------------------------------------
+//
+// Son selects (no inputs con datalist): un datalist filtra sus opciones por lo
+// que el campo ya tiene escrito, así que una vez elegida una categoría el
+// desplegable mostraba solo esa y parecía imposible cambiarla. El select
+// siempre muestra todas, y "+ Nueva..." abre un campo de texto aparte.
+
+const VALOR_NUEVA = '__nueva__';
+
+function poblarSelect(select, valores, { etiquetaNueva, etiquetaVacia, seleccionado }) {
+  select.innerHTML = '';
+  if (etiquetaVacia !== undefined) {
+    select.appendChild(new Option(etiquetaVacia, ''));
+  }
+  // Si el valor actual ya no está en la lista (ej. se renombró la familia), se
+  // agrega igual para no perderlo en silencio.
+  const opciones = valores.includes(seleccionado) || !seleccionado ? valores : [...valores, seleccionado];
+  opciones.forEach((v) => select.appendChild(new Option(v, v)));
+  select.appendChild(new Option(etiquetaNueva, VALOR_NUEVA));
+  select.value = seleccionado || '';
+}
+
+// Valor efectivo: lo elegido en el select, o lo tipeado si se eligió "+ Nueva".
+function valorSelectONuevo(select, inputNuevo) {
+  return select.value === VALOR_NUEVA ? inputNuevo.value.trim() : select.value;
+}
+
+function categoriaElegida() {
+  return valorSelectONuevo(inputServicioCategoria, inputCategoriaNueva);
+}
+
+function familiaElegida() {
+  return valorSelectONuevo(inputServicioFamilia, inputFamiliaNueva);
+}
+
+function poblarCategorias(seleccionada) {
+  poblarSelect(inputServicioCategoria, facetasCache.categorias, {
+    etiquetaVacia: 'Elegí una categoría...',
+    etiquetaNueva: '+ Nueva categoría...',
+    seleccionado: seleccionada,
+  });
+  inputCategoriaNueva.classList.add('hidden');
+  inputCategoriaNueva.value = '';
+}
+
+function poblarFamilias(seleccionada) {
+  poblarSelect(inputServicioFamilia, familiasDeCategoria(categoriaElegida()), {
+    etiquetaVacia: 'Sin familia',
+    etiquetaNueva: '+ Nueva familia...',
+    seleccionado: seleccionada,
+  });
+  inputFamiliaNueva.classList.add('hidden');
+  inputFamiliaNueva.value = '';
+}
+
+inputServicioCategoria.addEventListener('change', () => {
+  const nueva = inputServicioCategoria.value === VALOR_NUEVA;
+  inputCategoriaNueva.classList.toggle('hidden', !nueva);
+  if (nueva) inputCategoriaNueva.focus();
+  // Las familias dependen de la categoría: al cambiarla se re-arma la lista.
+  poblarFamilias('');
+  previsualizarSku();
+});
+
+inputCategoriaNueva.addEventListener('input', () => {
+  poblarFamilias('');
+  previsualizarSkuDebounced();
+});
+
+inputServicioFamilia.addEventListener('change', () => {
+  const nueva = inputServicioFamilia.value === VALOR_NUEVA;
+  inputFamiliaNueva.classList.toggle('hidden', !nueva);
+  if (nueva) inputFamiliaNueva.focus();
+  previsualizarSku();
+});
+
+inputFamiliaNueva.addEventListener('input', previsualizarSkuDebounced);
+
+// --- Formulario de servicio (alta y edición) -------------------------------
+
+function abrirServicioModal(servicio) {
+  servicioEditando = servicio ? servicio.sku : null;
+  document.getElementById('servicio-modal-title').textContent = servicio ? 'Editar servicio' : 'Nuevo servicio';
+  servicioFormMessage.textContent = '';
+  servicioFormMessage.className = 'message';
+
+  // Al editar, el SKU ya existe: se muestra editable y no se ofrece el
+  // selector de tipo (un servicio no se convierte en sub-servicio renombrando
+  // su SKU desde acá).
+  document.querySelector('.tipo-servicio').classList.toggle('hidden', !!servicio);
+  servicioSkuToggle.classList.toggle('hidden', !!servicio);
+  if (servicio) {
+    servicioPadreWrap.classList.add('hidden');
+    skuManual = true;
+    inputServicioSku.readOnly = false;
+    inputServicioSku.required = true;
+  } else {
+    document.querySelector('input[name="servicio-tipo"][value="nuevo"]').checked = true;
+    inputServicioPadre.value = '';
+    servicioPadreWrap.classList.add('hidden');
+    activarSkuManual(false);
+    cargarSelectPadres();
+  }
+
+  inputServicioSku.value = servicio ? servicio.sku : '';
+  // En un alta se prefija la categoría que esté filtrada en la tabla, pero
+  // sigue siendo cambiable desde el select.
+  poblarCategorias(servicio ? servicio.categoria : serviciosCategoria.value || '');
+  poblarFamilias(servicio ? servicio.familia || '' : '');
+  inputServicioNombre.value = servicio ? servicio.nombre : '';
+  inputPrecioRegular.value = servicio && servicio.precio_regular != null ? servicio.precio_regular : '';
+  inputPrecioOferta.value = servicio && servicio.precio_oferta != null ? servicio.precio_oferta : '';
+  inputPrecioMax.value = servicio && servicio.precio_max_desc != null ? servicio.precio_max_desc : '';
+  if (tienePermiso('inventario')) abrirGuiaInsumos(servicio ? servicio.sku : null);
+
+  servicioModal.classList.remove('hidden');
+  if (!servicio) previsualizarSku();
+  inputServicioNombre.focus();
+}
+
+function cerrarServicioModal() {
+  servicioModal.classList.add('hidden');
+  servicioEditando = null;
+}
+
+document.getElementById('btn-nuevo-servicio').addEventListener('click', () => abrirServicioModal(null));
+document.getElementById('servicio-cancelar').addEventListener('click', cerrarServicioModal);
+servicioModal.addEventListener('click', (e) => {
+  if (e.target === servicioModal) cerrarServicioModal();
+});
+
+servicioForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  servicioFormMessage.textContent = '';
+  servicioFormMessage.className = 'message';
+  servicioGuardar.disabled = true;
+
+  const esSub = servicioEditando === null && tipoServicioSeleccionado() === 'sub';
+  const payload = {
+    // Sin SKU manual, el servidor lo genera al insertar (el del preview puede
+    // haber quedado tomado por otro admin en el medio).
+    sku: skuManual || servicioEditando !== null ? inputServicioSku.value.trim() : '',
+    padre: esSub ? inputServicioPadre.value : null,
+    categoria: categoriaElegida(),
+    familia: familiaElegida(),
+    nombre: inputServicioNombre.value.trim(),
+    precio_regular: inputPrecioRegular.value,
+    precio_oferta: inputPrecioOferta.value,
+    precio_max_desc: inputPrecioMax.value,
+  };
+
+  if (!payload.categoria) {
+    servicioFormMessage.textContent = 'Elegí una categoría (o escribí el nombre de la nueva).';
+    servicioFormMessage.className = 'message error';
+    servicioGuardar.disabled = false;
+    return;
+  }
+
+  if (esSub && !payload.padre) {
+    servicioFormMessage.textContent = 'Elegí el servicio padre.';
+    servicioFormMessage.className = 'message error';
+    servicioGuardar.disabled = false;
+    return;
+  }
+
+  const editando = servicioEditando !== null;
+  const url = editando ? `/api/admin/servicios/${encodeURIComponent(servicioEditando)}` : '/api/admin/servicios';
+
+  try {
+    const res = await fetch(url, {
+      method: editando ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar');
+
+    if (tienePermiso('inventario')) {
+      // Si la guía falla el servicio ya quedó guardado: el formulario pasa a
+      // modo edición para que reintentar no intente crearlo de nuevo.
+      servicioEditando = data.servicio.sku;
+      inputServicioSku.value = data.servicio.sku;
+      await guardarGuiaInsumos(data.servicio.sku);
+    }
+
+    cerrarServicioModal();
+    await cargarFacetasServicios();
+    await cargarServicios({ reset: true });
+  } catch (err) {
+    servicioFormMessage.textContent = err.message;
+    servicioFormMessage.className = 'message error';
+  } finally {
+    servicioGuardar.disabled = false;
+  }
+});
+
+serviciosBody.addEventListener('click', async (e) => {
+  const editar = e.target.closest('[data-edit-servicio]');
+  if (editar) {
+    abrirServicioModal(editar.closest('tr')._servicio);
+    return;
+  }
+
+  const borrar = e.target.closest('[data-delete-servicio]');
+  if (!borrar) return;
+
+  const sku = borrar.dataset.deleteServicio;
+  const fila = borrar.closest('tr');
+  const confirmado = await mostrarConfirm(`¿Eliminar el servicio ${sku} — ${fila._servicio.nombre}?`);
+  if (!confirmado) return;
+
+  borrar.disabled = true;
+  try {
+    const res = await fetch(`/api/admin/servicios/${encodeURIComponent(sku)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+    fila.remove();
+    const statTotal = document.getElementById('servicios-stat-total');
+    statTotal.textContent = Math.max(0, Number(statTotal.textContent) - 1);
+    cargarFacetasServicios();
+  } catch (err) {
+    await mostrarAlert(err.message);
+    borrar.disabled = false;
+  }
+});
+
+document.getElementById('btn-export-servicios').addEventListener('click', () => {
+  window.location.href = `/api/admin/servicios/export?${paramsServicios()}`;
+});
+
+// ---------------------------------------------------------------------------
+// Cotizaciones
+// ---------------------------------------------------------------------------
+
+const SEMAFORO_LABEL = {
+  caliente: 'Caliente',
+  tibio: 'Tibio',
+  frio: 'Frío',
+  vencida: 'Vencida',
+  aceptada: 'Aceptada',
+  rechazada: 'Rechazada',
+};
+
+// El estado de la cotización se deriva de sus ítems (aceptación parcial).
+const ESTADO_LABEL = { abierta: 'Abierta', aceptada: 'Aceptada', rechazada: 'Rechazada', parcial: 'Parcial' };
+const ITEM_ESTADO_LABEL = { pendiente: 'Pendiente', aceptado: 'Aceptado', rechazado: 'Rechazado' };
+
+const cotQ = document.getElementById('cot-q');
+const cotSemaforo = document.getElementById('cot-semaforo');
+const cotDesde = document.getElementById('cot-desde');
+const cotHasta = document.getElementById('cot-hasta');
+const cotBody = document.getElementById('cot-body');
+const cotStatus = document.getElementById('cot-status');
+const cotScroll = document.getElementById('cot-scroll');
+
+const cotizacionModal = document.getElementById('cotizacion-modal');
+const cotizacionForm = document.getElementById('cotizacion-form');
+const cotizacionFormMessage = document.getElementById('cotizacion-form-message');
+const cotizacionGuardar = document.getElementById('cotizacion-guardar');
+
+const cotState = { offset: 0, hasMore: true, loading: false };
+// Cotización abierta en el modal (null = alta nueva).
+let cotizacionActual = null;
+// Cliente elegido y líneas en edición.
+let clienteElegido = null;
+let itemsEdicion = [];
+let mailConfigurado = false;
+
+function filtrosCotizaciones() {
+  return {
+    q: cotQ.value.trim(),
+    semaforo: cotSemaforo.value,
+    desde: cotDesde.value,
+    hasta: cotHasta.value,
+  };
+}
+
+function paramsCotizaciones(extra = {}) {
+  const params = new URLSearchParams({ ...filtrosCotizaciones(), ...extra });
+  [...params.keys()].forEach((k) => {
+    if (!params.get(k)) params.delete(k);
+  });
+  return params;
+}
+
+function pillSemaforo(semaforo) {
+  return `<span class="semaforo semaforo-${semaforo}">${SEMAFORO_LABEL[semaforo] || semaforo}</span>`;
+}
+
+function renderCotizacionRow(c) {
+  const tr = document.createElement('tr');
+  tr.className = 'fila-clickeable';
+  tr.dataset.id = c.id;
+  tr.innerHTML = `
+    <td class="cell-numero">${esc(c.numero)}</td>
+    <td>${esc(c.paciente)}<div class="resultado-meta">${esc(c.documento)}</div></td>
+    <td>${esc(c.titulo) || ''}</td>
+    <td class="cell-precio">${fmtMoneda(c.total)}</td>
+    <td>${fmtFecha(c.created_at)}</td>
+    <td>${fmtHace(c.updated_at)}</td>
+    <td>${pillSemaforo(c.semaforo)}</td>
+    <td><button type="button" class="btn-delete-row" data-delete-cot="${c.id}" title="Eliminar cotización">✕</button></td>
+  `;
+  return tr;
+}
+
+async function cargarCotizaciones({ reset }) {
+  if (cotState.loading) return;
+  if (reset) {
+    cotState.offset = 0;
+    cotState.hasMore = true;
+    cotBody.innerHTML = '';
+    cargarResumenCotizaciones();
+  }
+  if (!cotState.hasMore) return;
+
+  cotState.loading = true;
+  cotStatus.textContent = 'Cargando...';
+
+  try {
+    const res = await fetch(`/api/admin/cotizaciones?${paramsCotizaciones({ offset: String(cotState.offset) })}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al cargar');
+
+    data.rows.forEach((c) => cotBody.appendChild(renderCotizacionRow(c)));
+    cotState.hasMore = data.hasMore;
+    cotState.offset += data.rows.length;
+    cotStatus.textContent = cotState.hasMore ? '' : 'No hay más resultados.';
+    if (cotState.offset === 0) cotStatus.textContent = 'Sin cotizaciones.';
+  } catch (err) {
+    cotStatus.textContent = 'Error al cargar.';
+  } finally {
+    cotState.loading = false;
+  }
+}
+
+async function cargarResumenCotizaciones() {
+  try {
+    const res = await fetch(`/api/admin/cotizaciones/resumen?${paramsCotizaciones()}`);
+    const data = await res.json();
+    if (!res.ok) return;
+    document.getElementById('cot-stat-total').textContent = data.total;
+    document.getElementById('cot-stat-caliente').textContent = data.porSemaforo.caliente;
+    document.getElementById('cot-stat-seguimiento').textContent = data.porSemaforo.tibio + data.porSemaforo.frio;
+    document.getElementById('cot-stat-monto').textContent = fmtMoneda(data.montoAceptado);
+  } catch (err) {
+    // Las stat cards quedan con su último valor.
+  }
+}
+
+function configurarCotizaciones() {
+  const recargar = debounce(() => cargarCotizaciones({ reset: true }), 400);
+  cotQ.addEventListener('input', recargar);
+  [cotSemaforo, cotDesde, cotHasta].forEach((el) => el.addEventListener('change', () => cargarCotizaciones({ reset: true })));
+
+  cotScroll.addEventListener('scroll', () => {
+    if (cotScroll.scrollTop + cotScroll.clientHeight >= cotScroll.scrollHeight - 80) {
+      cargarCotizaciones({ reset: false });
+    }
+  });
+
+  // serviciosPorSku alimenta el buscador de ítems del modal, así que el
+  // catálogo tiene que estar cargado antes de abrir cualquier cotización.
+  cargarSelectPadres();
+
+  fetch('/api/admin/cotizaciones/config')
+    .then((r) => r.json())
+    .then((cfg) => {
+      mailConfigurado = Boolean(cfg.mailConfigurado);
+    })
+    .catch(() => {});
+
+  cargarCotizaciones({ reset: true });
+}
+
+// Clic en la fila -> detalle; clic en la ✕ -> borrar.
+cotBody.addEventListener('click', async (e) => {
+  const borrar = e.target.closest('[data-delete-cot]');
+  if (borrar) {
+    e.stopPropagation();
+    const id = borrar.dataset.deleteCot;
+    const confirmado = await mostrarConfirm('¿Eliminar esta cotización? Se borran también sus ítems y notas.');
+    if (!confirmado) return;
+    borrar.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/cotizaciones/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al eliminar');
+      borrar.closest('tr').remove();
+      cargarResumenCotizaciones();
+    } catch (err) {
+      await mostrarAlert(err.message);
+      borrar.disabled = false;
+    }
+    return;
+  }
+
+  const fila = e.target.closest('tr[data-id]');
+  if (fila) abrirCotizacion(fila.dataset.id);
+});
+
+// --- Buscador de clientes --------------------------------------------------
+
+const cotClienteBuscar = document.getElementById('cot-cliente-buscar');
+const cotClienteResultados = document.getElementById('cot-cliente-resultados');
+const cotClienteElegido = document.getElementById('cot-cliente-elegido');
+
+function mostrarClienteElegido(cliente) {
+  clienteElegido = cliente;
+  if (!cliente) {
+    cotClienteElegido.classList.add('hidden');
+    cotClienteBuscar.parentElement.classList.remove('hidden');
+    return;
+  }
+  document.getElementById('cot-cliente-nombre').textContent = cliente.paciente;
+  document.getElementById('cot-cliente-meta').textContent = [
+    `${cliente.tipo_doc || 'Doc'}: ${cliente.documento}`,
+    cliente.celular,
+    cliente.correo,
+  ]
+    .filter(Boolean)
+    .join('  ·  ');
+  cotClienteElegido.classList.remove('hidden');
+  cotClienteBuscar.parentElement.classList.add('hidden');
+  cotClienteResultados.classList.add('hidden');
+}
+
+const buscarClientes = debounce(async () => {
+  const q = cotClienteBuscar.value.trim();
+  if (q.length < 2) {
+    cotClienteResultados.classList.add('hidden');
+    return;
+  }
+  try {
+    const res = await fetch(`/api/admin/clientes?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    cotClienteResultados.innerHTML = '';
+    if (!data.rows.length) {
+      cotClienteResultados.innerHTML = '<p class="resultado-vacio">Sin resultados. Podés registrarlo con "+ Registrar usuario".</p>';
+    } else {
+      data.rows.slice(0, 20).forEach((c) => {
+        const div = document.createElement('div');
+        div.className = 'resultado-item';
+        div.dataset.documento = c.documento;
+        div.innerHTML = `<strong>${esc(c.paciente)}</strong><div class="resultado-meta">${esc(c.tipo_doc || 'Doc')}: ${esc(c.documento)}${c.celular ? ' · ' + esc(c.celular) : ''}</div>`;
+        div._cliente = c;
+        cotClienteResultados.appendChild(div);
+      });
+    }
+    cotClienteResultados.classList.remove('hidden');
+  } catch (err) {
+    cotClienteResultados.classList.add('hidden');
+  }
+}, 300);
+
+cotClienteBuscar.addEventListener('input', buscarClientes);
+cotClienteResultados.addEventListener('click', (e) => {
+  const item = e.target.closest('.resultado-item');
+  if (item) mostrarClienteElegido(item._cliente);
+});
+document.getElementById('btn-cambiar-cliente').addEventListener('click', () => {
+  mostrarClienteElegido(null);
+  cotClienteBuscar.value = '';
+  cotClienteBuscar.focus();
+});
+
+// --- Ítems -----------------------------------------------------------------
+
+const cotItemBuscar = document.getElementById('cot-item-buscar');
+const cotItemResultados = document.getElementById('cot-item-resultados');
+const cotItemsBody = document.getElementById('cot-items-body');
+const cotItemPrecioSelector = document.getElementById('cot-item-precio-selector');
+const cotItemPrecioNombre = document.getElementById('cot-item-precio-nombre');
+const cotItemPrecioOpciones = document.getElementById('cot-item-precio-opciones');
+
+function precioDeServicio(servicio, tipo) {
+  const porTipo = {
+    regular: servicio.precio_regular,
+    oferta: servicio.precio_oferta,
+    max_desc: servicio.precio_max_desc,
+  };
+  return porTipo[tipo];
+}
+
+// Los precios que el rol actual puede ver/elegir al cotizar (algunos, como
+// el máximo descuento, solo se habilitan por rol porque requieren
+// aprobación). Admin ve siempre los 3.
+function preciosVisibles() {
+  if (!sesionActual) return [];
+  if (sesionActual.esAdmin) return PRECIO_TIERS;
+  const precios = sesionActual.permisos && sesionActual.permisos.precios;
+  return PRECIO_TIERS.filter((t) => precios && precios[t]);
+}
+
+function totalItems() {
+  return itemsEdicion.reduce((acc, it) => acc + it.cantidad * it.precio_unitario, 0);
+}
+
+// Acciones de aceptación por ítem: solo tienen sentido para un ítem que ya
+// está guardado (tiene id) — uno recién agregado en esta edición todavía no
+// existe en el servidor, así que primero hay que guardar la cotización.
+function accionesItemEstado(item) {
+  if (!item.id) return '<span class="ayuda">Guardá para poder aceptar</span>';
+  if (item.estado === 'aceptado' || item.estado === 'rechazado') {
+    return `<div class="item-estado-btns">
+      <button type="button" class="btn-item-estado" data-item-id="${item.id}" data-estado="pendiente">↺ Pendiente</button>
+    </div>`;
+  }
+  return `<div class="item-estado-btns">
+    <button type="button" class="btn-item-estado btn-aceptar-item" data-item-id="${item.id}" data-estado="aceptado">✓ Aceptar</button>
+    <button type="button" class="btn-item-estado btn-rechazar-item" data-item-id="${item.id}" data-estado="rechazado">✕ Rechazar</button>
+  </div>`;
+}
+
+function renderItems() {
+  cotItemsBody.innerHTML = '';
+  itemsEdicion.forEach((item, i) => {
+    const estado = item.estado || 'pendiente';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="cell-sku">${esc(item.sku) || '—'}</td>
+      <td class="cell-servicio">${esc(item.nombre)}</td>
+      <td class="cell-precio"><input type="number" class="input-cantidad" min="1" step="1" value="${item.cantidad}" data-campo="cantidad" data-i="${i}" /></td>
+      <td class="cell-precio"><input type="number" class="input-precio" min="0" step="0.01" value="${item.precio_unitario}" data-campo="precio" data-i="${i}" /></td>
+      <td class="cell-precio">${fmtMoneda(item.cantidad * item.precio_unitario)}</td>
+      <td class="item-estado-celda">
+        <span class="semaforo semaforo-${estado}">${ITEM_ESTADO_LABEL[estado]}</span>
+        ${accionesItemEstado(item)}
+      </td>
+      <td><button type="button" class="btn-delete-row" data-quitar="${i}" title="Quitar ítem">✕</button></td>
+    `;
+    cotItemsBody.appendChild(tr);
+  });
+  document.getElementById('cot-items-vacio').classList.toggle('hidden', itemsEdicion.length > 0);
+  document.getElementById('cot-total').textContent = fmtMoneda(totalItems());
+}
+
+cotItemsBody.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-item-id]');
+  if (!btn || !cotizacionActual) return;
+  const itemId = btn.dataset.itemId;
+  const estado = btn.dataset.estado;
+
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/admin/cotizaciones/${cotizacionActual.id}/items/${itemId}/estado`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ estado }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al actualizar el ítem');
+    pintarCotizacion(data.cotizacion);
+    cargarCotizaciones({ reset: true });
+  } catch (err) {
+    await mostrarAlert(err.message);
+    btn.disabled = false;
+  }
+});
+
+cotItemsBody.addEventListener('input', (e) => {
+  const campo = e.target.dataset.campo;
+  if (!campo) return;
+  const i = Number(e.target.dataset.i);
+  if (campo === 'cantidad') {
+    itemsEdicion[i].cantidad = Math.max(1, Math.floor(Number(e.target.value) || 1));
+  } else {
+    itemsEdicion[i].precio_unitario = Math.max(0, Number(e.target.value) || 0);
+  }
+  // Se recalculan importes y total sin re-renderizar la fila que se está
+  // editando (perdería el foco del input).
+  const fila = e.target.closest('tr');
+  fila.children[4].textContent = fmtMoneda(itemsEdicion[i].cantidad * itemsEdicion[i].precio_unitario);
+  document.getElementById('cot-total').textContent = fmtMoneda(totalItems());
+});
+
+cotItemsBody.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-quitar]');
+  if (!btn) return;
+  itemsEdicion.splice(Number(btn.dataset.quitar), 1);
+  renderItems();
+});
+
+const buscarServicios = debounce(() => {
+  const q = cotItemBuscar.value.trim().toLowerCase();
+  if (q.length < 2) {
+    cotItemResultados.classList.add('hidden');
+    return;
+  }
+  const encontrados = [...serviciosPorSku.values()]
+    .filter((p) => p.sku.toLowerCase().includes(q) || p.nombre.toLowerCase().includes(q))
+    .slice(0, 20);
+
+  cotItemResultados.innerHTML = '';
+  if (!encontrados.length) {
+    cotItemResultados.innerHTML = '<p class="resultado-vacio">Sin servicios que coincidan.</p>';
+  } else {
+    encontrados.forEach((p) => {
+      const div = document.createElement('div');
+      div.className = 'resultado-item';
+      div.innerHTML = `<strong>${esc(p.nombre)}</strong><div class="resultado-meta">${esc(p.sku)} · ${esc(p.categoria)}${p.familia ? ' · ' + esc(p.familia) : ''}</div>`;
+      div._servicio = p;
+      cotItemResultados.appendChild(div);
+    });
+  }
+  cotItemResultados.classList.remove('hidden');
+}, 250);
+
+cotItemBuscar.addEventListener('input', buscarServicios);
+
+// Elegir un servicio NO lo agrega: primero muestra los precios disponibles
+// (solo los que el rol actual puede ver) para que se elija a mano cuál usar.
+cotItemResultados.addEventListener('click', (e) => {
+  const div = e.target.closest('.resultado-item');
+  if (!div || !div._servicio) return;
+  abrirSelectorPrecio(div._servicio);
+});
+
+function abrirSelectorPrecio(servicio) {
+  cotItemResultados.classList.add('hidden');
+  cotItemPrecioNombre.textContent = servicio.nombre;
+
+  const tiers = preciosVisibles().filter((t) => precioDeServicio(servicio, t) !== null && precioDeServicio(servicio, t) !== undefined);
+
+  cotItemPrecioOpciones.innerHTML = '';
+  if (!tiers.length) {
+    cotItemPrecioOpciones.innerHTML = '<p class="resultado-vacio">No tenés ningún precio habilitado para este servicio.</p>';
+  } else {
+    tiers.forEach((t) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-precio-opcion';
+      btn.innerHTML = `${esc(PRECIO_TIER_LABEL[t])}<span class="precio-opcion-monto">${fmtMoneda(precioDeServicio(servicio, t))}</span>`;
+      btn.addEventListener('click', () => agregarItemConPrecio(servicio, t));
+      cotItemPrecioOpciones.appendChild(btn);
+    });
+  }
+  cotItemPrecioSelector.classList.remove('hidden');
+}
+
+function cerrarSelectorPrecio() {
+  cotItemPrecioSelector.classList.add('hidden');
+  cotItemBuscar.value = '';
+  cotItemBuscar.focus();
+}
+
+function agregarItemConPrecio(servicio, tipo) {
+  // Si el servicio ya está en la lista, se suma una unidad en vez de duplicar.
+  const existente = itemsEdicion.find((it) => it.sku === servicio.sku);
+  if (existente) {
+    existente.cantidad += 1;
+  } else {
+    itemsEdicion.push({
+      sku: servicio.sku,
+      nombre: servicio.nombre,
+      cantidad: 1,
+      precio_unitario: precioDeServicio(servicio, tipo),
+      tipo_precio: tipo,
+    });
+  }
+  cerrarSelectorPrecio();
+  renderItems();
+}
+
+document.getElementById('cot-item-precio-cancelar').addEventListener('click', cerrarSelectorPrecio);
+
+// --- Modal de cotización ---------------------------------------------------
+
+function limpiarFormularioCotizacion() {
+  cotizacionFormMessage.textContent = '';
+  cotizacionFormMessage.className = 'message';
+  document.getElementById('cot-titulo').value = '';
+  document.getElementById('cot-validez').value = 30;
+  document.getElementById('cot-observaciones').value = '';
+  document.getElementById('cot-nota-texto').value = '';
+  cotClienteBuscar.value = '';
+  cotItemBuscar.value = '';
+  cotClienteResultados.classList.add('hidden');
+  cotItemResultados.classList.add('hidden');
+  cotItemPrecioSelector.classList.add('hidden');
+}
+
+const ACTIVIDAD_TAG = {
+  creacion: 'Creada',
+  item_agregado: 'Ítem',
+  item_quitado: 'Ítem',
+  item_cambiado: 'Ítem',
+  item_estado: 'Estado',
+};
+
+// Línea de tiempo tipo Jira: notas manuales + eventos automáticos (ítems,
+// estados), ya mezclados y ordenados por el servidor.
+function renderNotas(actividad) {
+  const lista = document.getElementById('cot-notas-lista');
+  lista.innerHTML = '';
+  if (!actividad.length) {
+    lista.innerHTML = '<li class="resultado-vacio">Sin actividad todavía.</li>';
+    return;
+  }
+  actividad.forEach((a) => {
+    const esNota = a.tipo === 'nota';
+    const li = document.createElement('li');
+    if (!esNota) li.className = 'actividad-evento';
+    const tag = esNota ? '' : `<span class="actividad-tag">${ACTIVIDAD_TAG[a.tipo] || a.tipo}</span>`;
+    li.innerHTML = `<span class="nota-fecha">${fmtFechaHora(a.created_at)}</span><span class="nota-texto">${tag}${esc(a.detalle)}</span>`;
+    lista.appendChild(li);
+  });
+}
+
+function pintarCotizacion(cotizacion) {
+  cotizacionActual = cotizacion;
+  const esNueva = !cotizacion;
+  cotItemPrecioSelector.classList.add('hidden');
+  cotItemResultados.classList.add('hidden');
+
+  document.getElementById('cotizacion-modal-title').textContent = esNueva
+    ? 'Nueva cotización'
+    : `Cotización ${cotizacion.numero}`;
+
+  const pill = document.getElementById('cotizacion-semaforo');
+  pill.classList.toggle('hidden', esNueva);
+  if (!esNueva) {
+    pill.className = `semaforo semaforo-${cotizacion.semaforo}`;
+    pill.textContent = `${SEMAFORO_LABEL[cotizacion.semaforo]} · ${fmtHace(cotizacion.updated_at)}`;
+  }
+
+  const pillEstado = document.getElementById('cotizacion-estado');
+  pillEstado.classList.toggle('hidden', esNueva);
+  if (!esNueva) {
+    pillEstado.className = `semaforo semaforo-${cotizacion.estado}`;
+    pillEstado.textContent = ESTADO_LABEL[cotizacion.estado] || cotizacion.estado;
+  }
+
+  document.getElementById('cot-bloque-notas').classList.toggle('hidden', esNueva);
+  document.getElementById('cot-acciones-doc').classList.toggle('hidden', esNueva);
+  document.getElementById('cot-ayuda-estado').classList.toggle('hidden', esNueva);
+
+  // El cliente de una cotización ya guardada no se puede cambiar: solo se
+  // permite elegirlo/corregirlo mientras todavía es nueva.
+  document.getElementById('btn-cambiar-cliente').classList.toggle('hidden', !esNueva);
+
+  if (esNueva) {
+    limpiarFormularioCotizacion();
+    itemsEdicion = [];
+    mostrarClienteElegido(null);
+  } else {
+    cotizacionFormMessage.textContent = '';
+    cotizacionFormMessage.className = 'message';
+    document.getElementById('cot-titulo').value = cotizacion.titulo || '';
+    document.getElementById('cot-validez').value = cotizacion.validez_dias;
+    document.getElementById('cot-observaciones').value = cotizacion.observaciones || '';
+    itemsEdicion = cotizacion.items.map((i) => ({ ...i }));
+    mostrarClienteElegido({
+      documento: cotizacion.documento,
+      paciente: cotizacion.paciente,
+      tipo_doc: cotizacion.tipo_doc,
+      celular: cotizacion.celular,
+      correo: cotizacion.correo,
+    });
+    renderNotas(cotizacion.actividad);
+  }
+
+  renderItems();
+  cotizacionModal.classList.remove('hidden');
+}
+
+async function abrirCotizacion(id) {
+  try {
+    // Se refresca el catálogo por si cambió el tarifario desde que cargó la
+    // página; los precios ya cotizados no se tocan (quedan congelados).
+    await cargarSelectPadres();
+    const res = await fetch(`/api/admin/cotizaciones/${id}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al abrir la cotización');
+    pintarCotizacion(data);
+  } catch (err) {
+    await mostrarAlert(err.message);
+  }
+}
+
+function cerrarCotizacionModal() {
+  cotizacionModal.classList.add('hidden');
+  cotizacionActual = null;
+}
+
+document.getElementById('btn-nueva-cotizacion').addEventListener('click', () => {
+  cargarSelectPadres(); // refresca serviciosPorSku, que alimenta el buscador de ítems
+  pintarCotizacion(null);
+});
+document.getElementById('cotizacion-cancelar').addEventListener('click', cerrarCotizacionModal);
+cotizacionModal.addEventListener('click', (e) => {
+  if (e.target === cotizacionModal) cerrarCotizacionModal();
+});
+
+cotizacionForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  cotizacionFormMessage.textContent = '';
+  cotizacionFormMessage.className = 'message';
+
+  if (!clienteElegido) {
+    cotizacionFormMessage.textContent = 'Elegí un cliente para la cotización.';
+    cotizacionFormMessage.className = 'message error';
+    return;
+  }
+  if (!itemsEdicion.length) {
+    cotizacionFormMessage.textContent = 'Agregá al menos un ítem.';
+    cotizacionFormMessage.className = 'message error';
+    return;
+  }
+
+  cotizacionGuardar.disabled = true;
+  const payload = {
+    documento: clienteElegido.documento,
+    titulo: document.getElementById('cot-titulo').value.trim(),
+    validez_dias: Number(document.getElementById('cot-validez').value),
+    observaciones: document.getElementById('cot-observaciones').value.trim(),
+    items: itemsEdicion,
+  };
+
+  const editando = cotizacionActual !== null;
+  const url = editando ? `/api/admin/cotizaciones/${cotizacionActual.id}` : '/api/admin/cotizaciones';
+
+  try {
+    const res = await fetch(url, {
+      method: editando ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar');
+
+    // Se queda abierta mostrando la cotización guardada, para poder imprimirla
+    // o mandarla sin tener que volver a abrirla.
+    pintarCotizacion(data.cotizacion);
+    cargarCotizaciones({ reset: true });
+  } catch (err) {
+    cotizacionFormMessage.textContent = err.message;
+    cotizacionFormMessage.className = 'message error';
+  } finally {
+    cotizacionGuardar.disabled = false;
+  }
+});
+
+document.getElementById('btn-agregar-nota').addEventListener('click', async () => {
+  const input = document.getElementById('cot-nota-texto');
+  const texto = input.value.trim();
+  if (!texto || !cotizacionActual) return;
+
+  try {
+    const res = await fetch(`/api/admin/cotizaciones/${cotizacionActual.id}/notas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al agregar la nota');
+    input.value = '';
+    pintarCotizacion(data.cotizacion);
+    cargarCotizaciones({ reset: true });
+  } catch (err) {
+    await mostrarAlert(err.message);
+  }
+});
+
+// --- Imprimir / PDF / correo -----------------------------------------------
+
+document.getElementById('btn-cot-imprimir').addEventListener('click', () => {
+  if (cotizacionActual) window.open(`/api/admin/cotizaciones/${cotizacionActual.id}/pdf`, '_blank');
+});
+
+document.getElementById('btn-cot-pdf').addEventListener('click', () => {
+  if (cotizacionActual) window.location.href = `/api/admin/cotizaciones/${cotizacionActual.id}/pdf?descargar=1`;
+});
+
+const emailModal = document.getElementById('email-modal');
+const emailForm = document.getElementById('email-form');
+const emailMessage = document.getElementById('email-form-message');
+const emailEnviar = document.getElementById('email-enviar');
+
+document.getElementById('btn-cot-email').addEventListener('click', async () => {
+  if (!cotizacionActual) return;
+  if (!mailConfigurado) {
+    await mostrarAlert('El envío por correo no está configurado en el servidor (faltan SMTP_HOST, SMTP_USER y SMTP_PASS). Mientras tanto podés descargar el PDF y mandarlo a mano.');
+    return;
+  }
+  emailMessage.textContent = '';
+  emailMessage.className = 'message';
+  document.getElementById('email-destinatario').value = cotizacionActual.correo || '';
+  const saludo = cotizacionActual.apodo || (cotizacionActual.paciente || '').split(' ')[0];
+  document.getElementById('email-mensaje').value =
+    `Hola ${saludo},\n\nTe compartimos la cotización ${cotizacionActual.numero} que preparamos para vos.\n\n¡Gracias por elegir Infinia!`;
+  emailModal.classList.remove('hidden');
+});
+
+document.getElementById('email-cancelar').addEventListener('click', () => emailModal.classList.add('hidden'));
+emailModal.addEventListener('click', (e) => {
+  if (e.target === emailModal) emailModal.classList.add('hidden');
+});
+
+emailForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  emailMessage.textContent = '';
+  emailMessage.className = 'message';
+  emailEnviar.disabled = true;
+
+  try {
+    const res = await fetch(`/api/admin/cotizaciones/${cotizacionActual.id}/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        destinatario: document.getElementById('email-destinatario').value.trim(),
+        mensaje: document.getElementById('email-mensaje').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al enviar');
+    emailModal.classList.add('hidden');
+    pintarCotizacion(data.cotizacion);
+    await mostrarAlert(`Cotización enviada a ${data.destinatario}.`);
+  } catch (err) {
+    emailMessage.textContent = err.message;
+    emailMessage.className = 'message error';
+  } finally {
+    emailEnviar.disabled = false;
+  }
+});
+
+// --- Alta rápida de cliente ------------------------------------------------
+
+const clienteModal = document.getElementById('cliente-modal');
+const clienteForm = document.getElementById('cliente-form');
+const clienteMessage = document.getElementById('cliente-form-message');
+const clienteGuardar = document.getElementById('cliente-guardar');
+
+document.getElementById('btn-registrar-cliente').addEventListener('click', () => {
+  clienteMessage.textContent = '';
+  clienteMessage.className = 'message';
+  clienteForm.reset();
+  const selectDistrito = document.getElementById('cli-distrito');
+  if (!selectDistrito.options.length) {
+    selectDistrito.appendChild(new Option('—', ''));
+    distritosCache.forEach((d) => selectDistrito.appendChild(new Option(d, d)));
+  }
+  // Arranca con lo que ya se haya tipeado en el buscador, si parece documento.
+  const buscado = cotClienteBuscar.value.trim();
+  if (/^[A-Za-z0-9]+$/.test(buscado)) document.getElementById('cli-documento').value = buscado;
+  clienteModal.classList.remove('hidden');
+});
+
+document.getElementById('cliente-cancelar').addEventListener('click', () => clienteModal.classList.add('hidden'));
+clienteModal.addEventListener('click', (e) => {
+  if (e.target === clienteModal) clienteModal.classList.add('hidden');
+});
+
+clienteForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clienteMessage.textContent = '';
+  clienteMessage.className = 'message';
+
+  const tipoDoc = document.getElementById('cli-tipo-doc').value;
+  const documento = document.getElementById('cli-documento').value.trim();
+
+  // Misma validación de formato que usa el formulario público y el servidor.
+  if (window.DocumentoValidation && !window.DocumentoValidation.validarFormatoDocumento(tipoDoc, documento)) {
+    clienteMessage.textContent = `El documento no tiene un formato válido para ${tipoDoc}.`;
+    clienteMessage.className = 'message error';
+    return;
+  }
+
+  clienteGuardar.disabled = true;
+  try {
+    const res = await fetch('/api/clientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        DOCUMENTO: documento,
+        TIPO_DOC: tipoDoc,
+        PACIENTE: document.getElementById('cli-paciente').value.trim(),
+        APODO: document.getElementById('cli-apodo').value.trim(),
+        CELULAR: document.getElementById('cli-celular').value.trim(),
+        CORREO: document.getElementById('cli-correo').value.trim(),
+        DISTRITO: document.getElementById('cli-distrito').value,
+        SEXO: document.getElementById('cli-sexo').value,
+        F_NACIMIENTO: document.getElementById('cli-nacimiento').value || null,
+        DIRECCION: document.getElementById('cli-direccion').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al registrar');
+
+    clienteModal.classList.add('hidden');
+    mostrarClienteElegido(data.cliente);
+  } catch (err) {
+    clienteMessage.textContent = err.message;
+    clienteMessage.className = 'message error';
+  } finally {
+    clienteGuardar.disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Cuentas y roles
+// ---------------------------------------------------------------------------
+
+const MODULOS_PERMISOS = ['clientes', 'asistencias', 'servicios', 'inventario', 'cotizaciones', 'cuentas'];
+const MODULO_LABEL = {
+  clientes: 'Clientes',
+  asistencias: 'Asistencias',
+  servicios: 'Servicios',
+  inventario: 'Inventario',
+  cotizaciones: 'Cotizaciones',
+  cuentas: 'Cuentas',
+};
+const PRECIO_TIERS = ['regular', 'oferta', 'max_desc'];
+const PRECIO_TIER_LABEL = { regular: 'Regular', oferta: 'Oferta', max_desc: 'Máx. descuento' };
+
+let rolesCache = [];
+let cuentasCuentaEditando = null;
+let rolEditando = null;
+
+const cuentasBody = document.getElementById('cuentas-body');
+const rolesBody = document.getElementById('roles-body');
+
+const cuentaModal = document.getElementById('cuenta-modal');
+const cuentaForm = document.getElementById('cuenta-form');
+const cuentaModalTitle = document.getElementById('cuenta-modal-title');
+const cuentaUsername = document.getElementById('cuenta-username');
+const cuentaPassword = document.getElementById('cuenta-password');
+const cuentaRolSelect = document.getElementById('cuenta-rol');
+const cuentaActivo = document.getElementById('cuenta-activo');
+const cuentaFormMessage = document.getElementById('cuenta-form-message');
+
+const rolModal = document.getElementById('rol-modal');
+const rolForm = document.getElementById('rol-form');
+const rolModalTitle = document.getElementById('rol-modal-title');
+const rolNombre = document.getElementById('rol-nombre');
+const rolFormMessage = document.getElementById('rol-form-message');
+
+function configurarCuentas() {
+  document.getElementById('btn-nueva-cuenta').addEventListener('click', () => abrirCuentaModal(null));
+  document.getElementById('cuenta-cancelar').addEventListener('click', () => cuentaModal.classList.add('hidden'));
+  cuentaForm.addEventListener('submit', guardarCuenta);
+
+  document.getElementById('btn-nuevo-rol').addEventListener('click', () => abrirRolModal(null));
+  document.getElementById('rol-cancelar').addEventListener('click', () => rolModal.classList.add('hidden'));
+  rolForm.addEventListener('submit', guardarRol);
+
+  cargarRoles();
+  cargarCuentas();
+}
+
+async function cargarRoles() {
+  const res = await fetch('/api/admin/roles');
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById('roles-status').textContent = data.error || 'Error al cargar roles';
+    return;
+  }
+  rolesCache = data.rows;
+  renderRoles();
+  llenarSelectRoles();
+}
+
+function renderRoles() {
+  rolesBody.innerHTML = rolesCache
+    .map((rol) => {
+      const celdas = MODULOS_PERMISOS.map((m) => `<td>${rol.permisos[m] ? '✓' : '—'}</td>`).join('');
+      const precios = PRECIO_TIERS.filter((t) => rol.permisos.precios && rol.permisos.precios[t])
+        .map((t) => PRECIO_TIER_LABEL[t])
+        .join(', ');
+      const acciones = rol.es_admin
+        ? '<span class="table-status">Protegido</span>'
+        : `<button type="button" class="link-btn" data-editar-rol="${rol.id}">Editar</button>
+           <button type="button" class="link-btn" data-borrar-rol="${rol.id}">Borrar</button>`;
+      return `<tr><td>${esc(rol.nombre)}</td>${celdas}<td>${esc(precios) || '—'}</td><td>${acciones}</td></tr>`;
+    })
+    .join('');
+  document.getElementById('roles-status').textContent = rolesCache.length ? '' : 'No hay roles.';
+}
+
+function llenarSelectRoles() {
+  const actual = cuentaRolSelect.value;
+  cuentaRolSelect.innerHTML = rolesCache.map((r) => `<option value="${r.id}">${esc(r.nombre)}</option>`).join('');
+  if (actual) cuentaRolSelect.value = actual;
+}
+
+rolesBody.addEventListener('click', async (e) => {
+  const editar = e.target.closest('[data-editar-rol]');
+  if (editar) return abrirRolModal(rolesCache.find((r) => String(r.id) === editar.dataset.editarRol));
+
+  const borrar = e.target.closest('[data-borrar-rol]');
+  if (borrar) {
+    const confirmado = await mostrarConfirm('¿Borrar este rol? Solo se puede borrar si ninguna cuenta lo usa.');
+    if (!confirmado) return;
+    const res = await fetch(`/api/admin/roles/${borrar.dataset.borrarRol}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) return mostrarAlert(data.error || 'No se pudo borrar el rol');
+    cargarRoles();
+  }
+});
+
+function abrirRolModal(rol) {
+  rolEditando = rol || null;
+  rolModalTitle.textContent = rol ? 'Editar rol' : 'Nuevo rol';
+  rolNombre.value = rol ? rol.nombre : '';
+  MODULOS_PERMISOS.forEach((m) => {
+    document.getElementById(`rol-perm-${m}`).checked = Boolean(rol && rol.permisos[m]);
+  });
+  PRECIO_TIERS.forEach((t) => {
+    document.getElementById(`rol-precio-${t}`).checked = Boolean(rol && rol.permisos.precios && rol.permisos.precios[t]);
+  });
+  rolFormMessage.textContent = '';
+  rolModal.classList.remove('hidden');
+}
+
+async function guardarRol(e) {
+  e.preventDefault();
+  rolFormMessage.textContent = '';
+  rolFormMessage.className = 'message';
+
+  const permisos = {};
+  MODULOS_PERMISOS.forEach((m) => {
+    permisos[m] = document.getElementById(`rol-perm-${m}`).checked;
+  });
+  permisos.precios = {};
+  PRECIO_TIERS.forEach((t) => {
+    permisos.precios[t] = document.getElementById(`rol-precio-${t}`).checked;
+  });
+
+  const body = { nombre: rolNombre.value.trim(), permisos };
+  const url = rolEditando ? `/api/admin/roles/${rolEditando.id}` : '/api/admin/roles';
+  const method = rolEditando ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar el rol');
+    rolModal.classList.add('hidden');
+    cargarRoles();
+  } catch (err) {
+    rolFormMessage.textContent = err.message;
+    rolFormMessage.className = 'message error';
+  }
+}
+
+async function cargarCuentas() {
+  const res = await fetch('/api/admin/cuentas');
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById('cuentas-status').textContent = data.error || 'Error al cargar cuentas';
+    return;
+  }
+  renderCuentas(data.rows);
+}
+
+function renderCuentas(rows) {
+  cuentasBody.innerHTML = rows
+    .map(
+      (u) => `<tr>
+        <td>${esc(u.username)}</td>
+        <td>${esc(u.rol_nombre)}</td>
+        <td>${u.activo ? 'Activo' : 'Inactivo'}</td>
+        <td>
+          <button type="button" class="link-btn" data-editar-cuenta="${u.id}">Editar</button>
+          <button type="button" class="link-btn" data-borrar-cuenta="${u.id}">Borrar</button>
+        </td>
+      </tr>`
+    )
+    .join('');
+  document.getElementById('cuentas-status').textContent = rows.length ? '' : 'No hay cuentas.';
+  cuentasBody.dataset.rows = JSON.stringify(rows);
+}
+
+cuentasBody.addEventListener('click', async (e) => {
+  const rows = JSON.parse(cuentasBody.dataset.rows || '[]');
+
+  const editar = e.target.closest('[data-editar-cuenta]');
+  if (editar) return abrirCuentaModal(rows.find((u) => String(u.id) === editar.dataset.editarCuenta));
+
+  const borrar = e.target.closest('[data-borrar-cuenta]');
+  if (borrar) {
+    const confirmado = await mostrarConfirm('¿Borrar esta cuenta?');
+    if (!confirmado) return;
+    const res = await fetch(`/api/admin/cuentas/${borrar.dataset.borrarCuenta}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) return mostrarAlert(data.error || 'No se pudo borrar la cuenta');
+    cargarCuentas();
+  }
+});
+
+function abrirCuentaModal(cuenta) {
+  cuentasCuentaEditando = cuenta || null;
+  cuentaModalTitle.textContent = cuenta ? 'Editar cuenta' : 'Nueva cuenta';
+  cuentaUsername.value = cuenta ? cuenta.username : '';
+  cuentaUsername.disabled = Boolean(cuenta);
+  cuentaPassword.value = '';
+  cuentaPassword.placeholder = cuenta ? 'Dejar en blanco para no cambiarla' : 'Mínimo 4 caracteres';
+  llenarSelectRoles();
+  cuentaRolSelect.value = cuenta ? cuenta.rol_id : rolesCache[0]?.id || '';
+  cuentaActivo.checked = cuenta ? cuenta.activo : true;
+  cuentaFormMessage.textContent = '';
+  cuentaModal.classList.remove('hidden');
+}
+
+async function guardarCuenta(e) {
+  e.preventDefault();
+  cuentaFormMessage.textContent = '';
+  cuentaFormMessage.className = 'message';
+
+  try {
+    let res;
+    if (cuentasCuentaEditando) {
+      const body = { rolId: Number(cuentaRolSelect.value), activo: cuentaActivo.checked };
+      if (cuentaPassword.value) body.password = cuentaPassword.value;
+      res = await fetch(`/api/admin/cuentas/${cuentasCuentaEditando.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } else {
+      res = await fetch('/api/admin/cuentas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: cuentaUsername.value.trim(),
+          password: cuentaPassword.value,
+          rolId: Number(cuentaRolSelect.value),
+        }),
+      });
+    }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error al guardar la cuenta');
+    cuentaModal.classList.add('hidden');
+    cargarCuentas();
+  } catch (err) {
+    cuentaFormMessage.textContent = err.message;
+    cuentaFormMessage.className = 'message error';
+  }
+}
+
 checkSession();
+
